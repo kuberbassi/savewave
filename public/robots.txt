@@ -2,6 +2,5 @@ User-agent: *
 Allow: /
 
 Disallow: /api/
-Disallow: /history
 
 Sitemap: https://savewave.kuberbassi.com/sitemap.xml

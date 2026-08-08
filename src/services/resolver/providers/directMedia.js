@@ -6,20 +6,34 @@
 
 const { createNormalizedResponse } = require('../types/normalized');
 const { sanitizeFilename } = require('../utils/sanitizer');
+const { safeFetch } = require('../utils/safeFetch');
 
 async function resolveDirectMedia(url, hintExtension = 'mp4') {
   let contentType = '';
+  let reachable = false;
+  const requestTimeout = () => AbortSignal.timeout(10000);
   
   // Verify Content-Type header via HEAD or GET request
   try {
-    const res = await fetch(url, { method: 'HEAD' });
-    contentType = res.headers.get('content-type') || '';
-  } catch (e) {
+    const res = await safeFetch(url, { method: 'HEAD', signal: requestTimeout() });
+    if (res.ok) {
+      reachable = true;
+      contentType = res.headers.get('content-type') || '';
+    }
+  } catch (e) {}
+
+  if (!reachable) {
     try {
-      const getRes = await fetch(url, { headers: { Range: 'bytes=0-1024' } });
-      contentType = getRes.headers.get('content-type') || '';
+      const getRes = await safeFetch(url, { headers: { Range: 'bytes=0-1024' }, signal: requestTimeout() });
+      if (getRes.ok) {
+        reachable = true;
+        contentType = getRes.headers.get('content-type') || '';
+      }
+      if (getRes.body) await getRes.body.cancel();
     } catch (e2) {}
   }
+
+  if (!reachable) throw new Error('This media source is unavailable or did not respond.');
 
   const lowerCt = contentType.toLowerCase();
   
@@ -47,7 +61,14 @@ async function resolveDirectMedia(url, hintExtension = 'mp4') {
     }
   }
 
-  const ext = isAudio ? (hintExtension === 'bin' ? 'mp3' : hintExtension) : isImage ? (hintExtension === 'bin' ? 'jpg' : hintExtension) : (hintExtension === 'bin' ? 'mp4' : hintExtension);
+  const mimeExtensions = {
+    'audio/mpeg': 'mp3', 'audio/mp4': 'm4a', 'audio/aac': 'aac', 'audio/wav': 'wav', 'audio/flac': 'flac', 'audio/ogg': 'ogg',
+    'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp', 'image/gif': 'gif',
+    'video/mp4': 'mp4', 'video/webm': 'webm', 'video/quicktime': 'mov', 'video/x-msvideo': 'avi'
+  };
+  const normalizedContentType = lowerCt.split(';')[0].trim();
+  const detectedExtension = mimeExtensions[normalizedContentType];
+  const ext = detectedExtension || (hintExtension === 'bin' ? (isAudio ? 'mp3' : isImage ? 'jpg' : 'mp4') : hintExtension);
   const rawTitle = url.split('/').pop().split('?')[0] || `media.${ext}`;
   const baseName = rawTitle.includes('.') ? rawTitle.replace(/\.[^/.]+$/, '') : rawTitle;
   const filename = sanitizeFilename(baseName, ext);
@@ -64,7 +85,7 @@ async function resolveDirectMedia(url, hintExtension = 'mp4') {
     qualityLabel: 'Original Quality',
     download: {
       directUrl: url,
-      mode: isAudio ? 'mp3' : 'mp4'
+      mode: isAudio ? 'mp3' : ext
     }
   });
 }

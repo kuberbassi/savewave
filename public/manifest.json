@@ -1,24 +1,18 @@
 {
   "name": "Savewave",
   "short_name": "Savewave",
-  "description": "Universal Media Downloader",
+  "description": "Download supported public video, audio, and images without an account.",
   "start_url": "/",
   "display": "standalone",
-  "orientation": "portrait",
+  "orientation": "any",
   "background_color": "#e03d27",
   "theme_color": "#e03d27",
   "icons": [
     {
-      "src": "savewave-light.png",
-      "sizes": "192x192",
+      "src": "/pwa-icon-dark.png",
+      "sizes": "1254x1254",
       "type": "image/png",
-      "purpose": "any maskable"
-    },
-    {
-      "src": "savewave-light.png",
-      "sizes": "512x512",
-      "type": "image/png",
-      "purpose": "any maskable"
+      "purpose": "any"
     }
   ]
 }

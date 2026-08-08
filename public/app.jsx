@@ -4,6 +4,7 @@ const HISTORY_STORAGE_KEY = 'savewave_local_history';
 const HISTORY_STORAGE_LIMIT = 50;
 const HISTORY_PAGE_SIZE = 8;
 const RESOLVE_TIMEOUT_MS = 30000;
+const DOWNLOAD_PREPARE_TIMEOUT_MS = 45000;
 
 const SUPPORTED_PLATFORMS = [
   { name: 'YOUTUBE', label: 'YouTube', capability: 'VIDEO + AUDIO', title: 'YouTube videos, Shorts, and audio' },
@@ -73,8 +74,8 @@ const PlatformIcon = ({ name, className = "w-5 h-5" }) => {
       );
     case 'SOUNDCLOUD':
       return (
-        <svg className={`${className} text-orange-500`} viewBox="0 0 24 24" fill="currentColor">
-          <path d="M1.175 12.225c-.05 0-.087.038-.1.088l-.512 3.125.512 3.1c.013.05.05.088.1.088.037 0 .075-.038.087-.088l.6-3.1-.6-3.125c-.012-.05-.05-.088-.087-.088zm2.038-1.587c-.05 0-.088.037-.1.087l-.538 4.712.538 4.675c.012.05.05.088.1.088.05 0 .087-.038.1-.088l.625-4.675-.625-4.712c-.013-.05-.05-.087-.1-.087zm2.112-.763c-.05 0-.087.038-.1.088l-.55 5.475.55 5.425c.013.05.05.088.1.088s.088-.038.1-.088l.638-5.425-.638-5.475c-.012-.05-.05-.088-.1-.088zm2.125-.975c-.05 0-.087.038-.1.088l-.55 6.45.55 6.375c.013.05.05.088.1.088s.088-.038.1-.088l.65-6.375-.65-6.45c-.012-.05-.05-.088-.1-.088zm2.138-.85c-.05 0-.088.038-.1.088l-.538 7.3.538 7.212c.012.05.05.088.1.088s.087-.038.1-.088l.65-7.212-.65-7.3c-.013-.05-.05-.088-.1-.088zm2.462-1.375c-.675 0-1.312.2-1.85.55-.062.038-.087.088-.075.138l.45 8.012-.45 7.825c-.012.05.013.1.075.125.175.1.375.163.587.213.375.075.762.112 1.163.112 3.65 0 6.612-2.875 6.775-6.488.925.075 1.837-.238 2.525-.863s1.075-1.525 1.075-2.462c0-1.887-1.475-3.437-3.362-3.525-.65-1.925-2.463-3.275-4.538-3.275z" />
+        <svg className={`${className} text-white`} viewBox="0 0 24 24" fill="currentColor" role="img" aria-label="SoundCloud">
+          <path d="M23.999 14.165c-.052 1.796-1.612 3.169-3.4 3.169h-8.18a.68.68 0 0 1-.675-.683V7.862a.747.747 0 0 1 .452-.724s.75-.513 2.333-.513a5.364 5.364 0 0 1 2.763.755 5.433 5.433 0 0 1 2.57 3.54c.282-.08.574-.121.868-.12.884 0 1.73.358 2.347.992s.948 1.49.922 2.373ZM10.721 8.421c.247 2.98.427 5.697 0 8.672a.264.264 0 0 1-.53 0c-.395-2.946-.22-5.718 0-8.672a.264.264 0 0 1 .53 0ZM9.072 9.448c.285 2.659.37 4.986-.006 7.655a.277.277 0 0 1-.55 0c-.331-2.63-.256-5.02 0-7.655a.277.277 0 0 1 .556 0Zm-1.663-.257c.27 2.726.39 5.171 0 7.904a.266.266 0 0 1-.532 0c-.38-2.69-.257-5.21 0-7.904a.266.266 0 0 1 .532 0Zm-1.647.77a26.108 26.108 0 0 1-.008 7.147.272.272 0 0 1-.542 0 27.955 27.955 0 0 1 0-7.147.275.275 0 0 1 .55 0Zm-1.67 1.769c.421 1.865.228 3.5-.029 5.388a.257.257 0 0 1-.514 0c-.21-1.858-.398-3.549 0-5.389a.272.272 0 0 1 .543 0Zm-1.655-.273c.388 1.897.26 3.508-.01 5.412-.026.28-.514.283-.54 0-.244-1.878-.347-3.54-.01-5.412a.283.283 0 0 1 .56 0Zm-1.668.911c.4 1.268.257 2.292-.026 3.572a.257.257 0 0 1-.514 0c-.241-1.262-.354-2.312-.023-3.572a.283.283 0 0 1 .563 0Z" />
         </svg>
       );
     case 'DRIVE':
@@ -176,9 +177,11 @@ const SavewaveApp = () => {
   const [platformInfo, setPlatformInfo] = useState(null);
   const [mode, setMode] = useState('video'); // 'video' | 'audio'
   const [loading, setLoading] = useState(false);
+  const [resolveProgress, setResolveProgress] = useState(0);
   const [downloading, setDownloading] = useState(false);
   const [downloadProgress, setDownloadProgress] = useState(0);
   const [mediaInfo, setMediaInfo] = useState(null);
+  const [resolvedInput, setResolvedInput] = useState(null);
   const [clientHistory, setClientHistory] = useState([]);
   const [visibleHistoryCount, setVisibleHistoryCount] = useState(HISTORY_PAGE_SIZE);
 
@@ -186,6 +189,13 @@ const SavewaveApp = () => {
   const [modalConfig, setModalConfig] = useState({ isOpen: false, title: '', message: '' });
 
   const mainContentRef = useRef(null);
+  const resolveRequestRef = useRef(null);
+  const downloadRequestRef = useRef(null);
+
+  useEffect(() => () => {
+    if (resolveRequestRef.current) resolveRequestRef.current.abort();
+    if (downloadRequestRef.current) downloadRequestRef.current.abort();
+  }, []);
 
   const navigateToTab = (tabName) => {
     setActiveTab(tabName);
@@ -232,14 +242,19 @@ const SavewaveApp = () => {
   };
 
   const clearInput = () => {
+    if (resolveRequestRef.current) resolveRequestRef.current.abort();
     setUrl('');
     setPlatformInfo(null);
     setMediaInfo(null);
+    setResolvedInput(null);
   };
 
   // Live platform detection
   const handleUrlChange = (val) => {
+    if (resolveRequestRef.current) resolveRequestRef.current.abort();
     setUrl(val);
+    setMediaInfo(null);
+    setResolvedInput(null);
     if (!val) {
       setPlatformInfo(null);
       return;
@@ -266,20 +281,35 @@ const SavewaveApp = () => {
     }
   };
 
+  const handleModeChange = (nextMode) => {
+    if (mode === nextMode) return;
+    setMode(nextMode);
+    setMediaInfo(null);
+    setResolvedInput(null);
+  };
+
   // Resolve media link
   const handleResolve = async (e) => {
     if (e) e.preventDefault();
-    if (!url) return;
+    const requestedUrl = url.trim();
+    const requestedMode = mode;
+    if (!requestedUrl || loading) return;
+    if (resolveRequestRef.current) resolveRequestRef.current.abort();
     setLoading(true);
+    setResolveProgress(12);
     setMediaInfo(null);
     const controller = new AbortController();
+    resolveRequestRef.current = controller;
     const timeout = setTimeout(() => controller.abort(), RESOLVE_TIMEOUT_MS);
+    const progressTimer = setInterval(() => {
+      setResolveProgress((value) => Math.min(value + Math.max(2, (88 - value) * 0.12), 88));
+    }, 350);
 
     try {
       const res = await fetch('/api/resolve', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ url: url.trim(), mode }),
+        body: JSON.stringify({ url: requestedUrl, mode: requestedMode }),
         signal: controller.signal
       });
       const data = await res.json();
@@ -288,23 +318,39 @@ const SavewaveApp = () => {
         return;
       }
       setMediaInfo(data);
+      setResolvedInput({ url: requestedUrl, mode: requestedMode });
+      setResolveProgress(100);
     } catch (err) {
+      if (controller.signal.aborted && resolveRequestRef.current !== controller) return;
       const message = err.name === 'AbortError'
         ? 'The resolver took too long. Please retry in a moment.'
         : 'Failed to resolve this media. Check the link and your connection.';
       showAlert(message, 'EXTRACTION ERROR');
     } finally {
       clearTimeout(timeout);
-      setLoading(false);
+      clearInterval(progressTimer);
+      if (resolveRequestRef.current === controller) {
+        resolveRequestRef.current = null;
+        setTimeout(() => {
+          setLoading(false);
+          setResolveProgress(0);
+        }, 250);
+      }
     }
   };
 
   // Download trigger
-  const triggerBrowserDownload = () => {
-    if (!mediaInfo || downloading) return;
+  const triggerBrowserDownload = async () => {
+    if (!mediaInfo || !resolvedInput || downloading) return;
+    if (resolvedInput.url !== url.trim() || resolvedInput.mode !== mode) {
+      setMediaInfo(null);
+      setResolvedInput(null);
+      showAlert('The link or format changed. Resolve it again before saving.', 'PREVIEW EXPIRED');
+      return;
+    }
 
     setDownloading(true);
-    setDownloadProgress(10);
+    setDownloadProgress(12);
 
     const interval = setInterval(() => {
       setDownloadProgress((prev) => {
@@ -312,9 +358,9 @@ const SavewaveApp = () => {
           clearInterval(interval);
           return 90;
         }
-        return prev + 20;
+        return Math.min(prev + Math.max(2, (90 - prev) * 0.14), 90);
       });
-    }, 150);
+    }, 300);
 
     let streamMode = mode === 'audio' ? 'mp3' : 'mp4';
     let fileExt = streamMode;
@@ -326,33 +372,51 @@ const SavewaveApp = () => {
       }
     }
 
-    const targetUrl = (mediaInfo.download && mediaInfo.download.directUrl) || mediaInfo.directUrl || url;
+    const targetUrl = (mediaInfo.download && mediaInfo.download.directUrl) || mediaInfo.directUrl || resolvedInput.url;
     const downloadFilename = mediaInfo.filename || `${mediaInfo.title}.${fileExt}`;
-    const downloadUrl = `/api/stream?url=${encodeURIComponent(targetUrl)}&mode=${fileExt}&title=${encodeURIComponent(mediaInfo.title)}`;
+    const controller = new AbortController();
+    downloadRequestRef.current = controller;
+    const prepareTimeout = setTimeout(() => controller.abort(), DOWNLOAD_PREPARE_TIMEOUT_MS);
 
-    const a = document.createElement('a');
-    a.href = downloadUrl;
-    a.download = downloadFilename;
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-
-    setTimeout(() => {
-      clearInterval(interval);
+    try {
+      const response = await fetch('/api/prepare-download', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url: targetUrl, mode: fileExt, title: mediaInfo.title }),
+        signal: controller.signal
+      });
+      const prepared = await response.json();
+      if (!response.ok || !prepared.downloadUrl) throw new Error(prepared.error || 'Download preparation failed.');
       setDownloadProgress(100);
+
+      const a = document.createElement('a');
+      a.href = prepared.downloadUrl;
+      a.download = prepared.filename || downloadFilename;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+
+      saveToLocalHistory({
+        id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+        title: mediaInfo.title,
+        uploader: mediaInfo.creator || mediaInfo.uploader,
+        mode,
+        timestamp: new Date().toLocaleString()
+      });
+    } catch (error) {
+      const message = error.name === 'AbortError'
+        ? 'Download preparation took too long. Please retry.'
+        : error.message || 'Could not prepare this download.';
+      showAlert(message, 'DOWNLOAD ERROR');
+    } finally {
+      clearTimeout(prepareTimeout);
+      clearInterval(interval);
+      if (downloadRequestRef.current === controller) downloadRequestRef.current = null;
       setTimeout(() => {
         setDownloading(false);
         setDownloadProgress(0);
-      }, 600);
-    }, 1200);
-
-    saveToLocalHistory({
-      id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-      title: mediaInfo.title,
-      uploader: mediaInfo.uploader,
-      mode: mode,
-      timestamp: new Date().toLocaleString()
-    });
+      }, 450);
+    }
   };
 
   return (
@@ -506,6 +570,12 @@ const SavewaveApp = () => {
                 </div>
               </form>
 
+              {loading && (
+                <div className="slim-progress mt-3" role="progressbar" aria-label="Resolving media" aria-valuemin="0" aria-valuemax="100" aria-valuenow={Math.round(resolveProgress)}>
+                  <span style={{ width: `${resolveProgress}%` }}></span>
+                </div>
+              )}
+
               {/* Mode Toggle */}
               {platformInfo && platformInfo.isAudioOnly ? (
                 <div className="bg-[#0d0d0e] py-3.5 px-4 border border-white/10 mt-6 font-mono text-xs uppercase text-center text-[#e03d27] font-bold flex items-center justify-center gap-2">
@@ -516,14 +586,14 @@ const SavewaveApp = () => {
                 <div className="grid grid-cols-2 gap-2 bg-[#0d0d0e] p-1.5 border border-white/10 mt-6 font-mono text-xs uppercase">
                   <button
                     type="button"
-                    onClick={() => setMode('video')}
+                    onClick={() => handleModeChange('video')}
                     className={`py-3 transition-all ${mode === 'video' ? 'bg-[#e03d27] text-white font-bold' : 'text-zinc-400 hover:text-white'}`}
                   >
                     Video
                   </button>
                   <button
                     type="button"
-                    onClick={() => setMode('audio')}
+                    onClick={() => handleModeChange('audio')}
                     className={`py-3 transition-all ${mode === 'audio' ? 'bg-[#e03d27] text-white font-bold' : 'text-zinc-400 hover:text-white'}`}
                   >
                     Audio
@@ -533,7 +603,8 @@ const SavewaveApp = () => {
 
               {/* COMPACT CLEAN RESULT LAYOUT */}
               {mediaInfo && (
-                <div className="mt-8 pt-8 border-t border-white/10 state-reveal-transition">
+                <div className="mt-8 pt-8 border-t border-white/10 state-reveal-transition" aria-live="polite">
+                  <div className="font-mono text-[10px] tracking-widest text-emerald-400 mb-3">READY TO SAVE</div>
                   <div className="bg-[#0d0d0e] border border-white/10 p-6 flex flex-col md:flex-row gap-6 items-center justify-between card-hover-lift">
                     <div className="flex items-center gap-5 min-w-0 flex-1">
                       {mediaInfo.thumbnail ? (
@@ -546,7 +617,7 @@ const SavewaveApp = () => {
 
                       <div className="min-w-0 flex-1">
                         <h3 className="text-base font-bold text-white mb-1 truncate">{mediaInfo.title}</h3>
-                        <p className="text-xs font-mono text-zinc-400 mb-2 truncate">{mediaInfo.uploader || 'Savewave Engine'}</p>
+                        <p className="text-xs font-mono text-zinc-400 mb-2 truncate">{mediaInfo.creator || mediaInfo.uploader || 'Savewave Engine'}</p>
 
                         <div className="flex flex-wrap items-center gap-x-2 gap-y-1 font-mono text-[11px] text-[#e03d27]">
                           <span>{typeof mediaInfo.platform === 'string' ? mediaInfo.platform.toUpperCase() : (mediaInfo.platform && mediaInfo.platform.name) || 'WEB MEDIA'}</span> • <span>{mode.toUpperCase()}</span> • <span>{mediaInfo.qualityLabel || 'BEST AVAILABLE QUALITY'}</span>
@@ -554,9 +625,16 @@ const SavewaveApp = () => {
                       </div>
                     </div>
 
-                    <RigButton variant="red" className="w-full md:w-auto py-4 px-8 text-xs shrink-0" onClick={triggerBrowserDownload}>
-                      SAVE
-                    </RigButton>
+                    <div className="w-full md:w-auto shrink-0">
+                      <RigButton variant="red" disabled={downloading} className="w-full md:w-auto py-4 px-8 text-xs" onClick={triggerBrowserDownload}>
+                        {downloading ? 'PREPARING' : 'SAVE'}
+                      </RigButton>
+                      {downloading && (
+                        <div className="slim-progress mt-2" role="progressbar" aria-label="Preparing download" aria-valuemin="0" aria-valuemax="100" aria-valuenow={Math.round(downloadProgress)}>
+                          <span style={{ width: `${downloadProgress}%` }}></span>
+                        </div>
+                      )}
+                    </div>
                   </div>
                 </div>
               )}

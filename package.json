@@ -1,8 +1,11 @@
 {
   "name": "savewave",
   "version": "1.0.0",
-  "description": "Minimal Media & Video Downloader Web Application",
+  "description": "Privacy-focused resolver and downloader for supported public video, audio, and image links.",
   "main": "server.js",
+  "engines": {
+    "node": ">=20"
+  },
   "scripts": {
     "start": "node server.js",
     "dev": "node server.js",
@@ -12,17 +15,8 @@
     "test": "vitest run --globals"
   },
   "dependencies": {
-    "@vercel/analytics": "^2.0.1",
-    "clsx": "^2.1.1",
-    "cors": "^2.8.5",
     "express": "^4.19.2",
-    "framer-motion": "^13.0.0",
-    "idb": "^8.0.3",
-    "lucide-react": "^1.30.0",
-    "react": "^19.2.8",
-    "react-dom": "^19.2.8",
-    "tailwind-merge": "^3.6.0",
-    "ws": "^8.18.0",
+    "undici": "^6.28.0",
     "yt-dlp-exec": "^1.0.2"
   },
   "license": "MIT",
@@ -31,9 +25,6 @@
     "@babel/core": "^8.0.1",
     "@babel/preset-react": "^8.0.1",
     "@tailwindcss/cli": "^4.3.3",
-    "autoprefixer": "^10.5.4",
-    "babel-standalone": "^6.26.0",
-    "postcss": "^8.5.26",
     "supertest": "^7.2.2",
     "tailwindcss": "^4.3.3",
     "vitest": "^4.1.10"

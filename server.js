@@ -5,15 +5,49 @@ const { spawn } = require('child_process');
 const ytdlp = require('yt-dlp-exec');
 
 const { resolveMedia } = require('./src/services/resolver/resolveMedia');
-const { validateUrl } = require('./src/services/resolver/utils/ssrfGuard');
+const { validateUrl, validateRemoteUrl } = require('./src/services/resolver/utils/ssrfGuard');
+const { safeFetch } = require('./src/services/resolver/utils/safeFetch');
+const { detectSource } = require('./src/services/resolver/detectSource');
 
 const app = express();
 const server = http.createServer(app);
 
 const PORT = process.env.PORT || 3000;
+const apiWindows = new Map();
+let activeStreams = 0;
 
-app.use(express.json());
+app.disable('x-powered-by');
+app.use((req, res, next) => {
+  res.set({
+    'X-Content-Type-Options': 'nosniff',
+    'X-Frame-Options': 'DENY',
+    'Referrer-Policy': 'strict-origin-when-cross-origin',
+    'Permissions-Policy': 'camera=(), microphone=(), geolocation=(), payment=(), usb=()'
+  });
+  next();
+});
+app.use(express.json({ limit: '8kb' }));
 app.use(express.static(path.join(__dirname, 'public')));
+
+app.use('/api', (req, res, next) => {
+  const now = Date.now();
+  const key = req.ip || req.socket.remoteAddress || 'unknown';
+  const current = apiWindows.get(key);
+  const windowState = !current || now >= current.resetAt
+    ? { count: 1, resetAt: now + 60_000 }
+    : { count: current.count + 1, resetAt: current.resetAt };
+  apiWindows.set(key, windowState);
+
+  res.setHeader('RateLimit-Limit', '30');
+  res.setHeader('RateLimit-Remaining', String(Math.max(0, 30 - windowState.count)));
+  res.setHeader('RateLimit-Reset', String(Math.ceil(windowState.resetAt / 1000)));
+  if (windowState.count > 30) return res.status(429).json({ error: 'Too many requests. Please wait a moment and try again.' });
+
+  if (apiWindows.size > 1000) {
+    for (const [storedKey, value] of apiWindows) if (now >= value.resetAt) apiWindows.delete(storedKey);
+  }
+  next();
+});
 
 // Unified Resolver API Endpoint
 app.post('/api/resolve', async (req, res) => {
@@ -25,10 +59,45 @@ app.post('/api/resolve', async (req, res) => {
   }
 
   try {
+    const remote = await validateRemoteUrl(url);
+    if (!remote.valid) return res.status(400).json({ error: remote.reason });
     const normalized = await resolveMedia(url, mode);
     return res.json(normalized);
   } catch (err) {
     return res.status(422).json({ error: err.message || 'Unable to resolve this media' });
+  }
+});
+
+// Validate and resolve the final target before opening the browser download.
+app.post('/api/prepare-download', async (req, res) => {
+  const { url, mode = 'mp4', title = 'media' } = req.body || {};
+  const guard = validateUrl(url);
+  if (!guard.valid) return res.status(400).json({ error: guard.reason });
+
+  const isAudio = mode === 'mp3' || mode === 'audio';
+  const resolverMode = isAudio ? 'audio' : 'video';
+  try {
+    const remote = await validateRemoteUrl(url);
+    if (!remote.valid) return res.status(400).json({ error: remote.reason });
+    const resolved = await resolveMedia(url, resolverMode);
+    const finalUrl = resolved && resolved.download && resolved.download.directUrl || url;
+    const finalGuard = validateUrl(finalUrl);
+    if (!finalGuard.valid) return res.status(422).json({ error: 'The resolved media target is not safe to download.' });
+
+    const resolvedMode = resolved && resolved.download && resolved.download.mode || mode;
+    const cleanTitle = String(title || resolved.title || 'media').replace(/[^a-zA-Z0-9_\- ]/g, '').trim() || 'media';
+    const allowedModes = new Set(['png', 'jpg', 'jpeg', 'webp', 'gif', 'mp3', 'm4a', 'aac', 'wav', 'flac', 'ogg', 'mp4', 'webm', 'mov']);
+    const requestedMode = String(resolvedMode || '').replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
+    const extension = isAudio ? 'mp3' : (allowedModes.has(requestedMode) ? requestedMode : 'mp4');
+    const params = new URLSearchParams({ url: finalUrl, mode: extension, title: cleanTitle });
+
+    return res.json({
+      ready: true,
+      filename: `${cleanTitle}.${extension}`,
+      downloadUrl: `/api/stream?${params.toString()}`
+    });
+  } catch (error) {
+    return res.status(422).json({ error: error.message || 'Unable to prepare this download.' });
   }
 });
 
@@ -40,11 +109,25 @@ app.get('/api/stream', async (req, res) => {
   if (!ssrf.valid) {
     return res.status(400).send('Invalid or restricted URL');
   }
+  if (activeStreams >= 4) return res.status(503).send('The downloader is busy. Please try again shortly.');
+  activeStreams += 1;
+  let streamReleased = false;
+  const releaseStream = () => {
+    if (streamReleased) return;
+    streamReleased = true;
+    activeStreams = Math.max(0, activeStreams - 1);
+  };
+  res.once('finish', releaseStream);
+  res.once('close', releaseStream);
 
   const isAudio = mode === 'mp3' || mode === 'audio';
+  const resolverMode = isAudio ? 'audio' : 'video';
   const cleanTitle = (title || 'media').replace(/[^a-zA-Z0-9_\- ]/g, '');
-  const ext = isAudio ? 'mp3' : (mode && mode !== 'video' ? mode : 'mp4');
+  const allowedExtensions = new Set(['png', 'jpg', 'jpeg', 'webp', 'gif', 'mp3', 'm4a', 'aac', 'wav', 'flac', 'ogg', 'mp4', 'webm', 'mov']);
+  const requestedExtension = String(mode || '').toLowerCase();
+  const ext = isAudio ? 'mp3' : (allowedExtensions.has(requestedExtension) ? requestedExtension : 'mp4');
   const filename = `${cleanTitle}.${ext}`;
+  const source = detectSource(url);
 
   const contentTypeMap = {
     png: 'image/png',
@@ -63,25 +146,40 @@ app.get('/api/stream', async (req, res) => {
 
   res.setHeader('Content-Disposition', `attachment; filename="${encodeURIComponent(filename)}"; filename*=UTF-8''${encodeURIComponent(filename)}`);
   res.setHeader('Content-Type', contentTypeMap[ext] || (isAudio ? 'audio/mpeg' : 'video/mp4'));
+  res.setHeader('Cache-Control', 'private, no-store');
+  res.setHeader('X-Content-Type-Options', 'nosniff');
 
   // Proxy or pipe stream directly to enforce attachment disposition headers
   try {
     if (url.startsWith('http')) {
-      const resolved = await resolveMedia(url, mode);
+      const remote = await validateRemoteUrl(url);
+      if (!remote.valid) return res.status(400).send('Invalid or restricted URL');
+      const resolved = await resolveMedia(url, resolverMode);
       const targetUrl = (resolved && resolved.download && resolved.download.directUrl) ? resolved.download.directUrl : null;
       
       if (targetUrl && (targetUrl.startsWith('http://') || targetUrl.startsWith('https://'))) {
-        const fetchStream = await fetch(targetUrl);
+        const fetchStream = await safeFetch(targetUrl, { signal: AbortSignal.timeout(30000) });
         if (fetchStream.ok && fetchStream.body) {
+          const upstreamType = (fetchStream.headers.get('content-type') || '').toLowerCase();
+          if (upstreamType.includes('text/html') || upstreamType.includes('application/json')) {
+            await fetchStream.body.cancel();
+            return res.status(502).send('The resolved source did not return downloadable media.');
+          }
+          const upstreamLength = fetchStream.headers.get('content-length');
+          if (upstreamLength && /^\d+$/.test(upstreamLength)) res.setHeader('Content-Length', upstreamLength);
           const { Readable } = require('stream');
           const nodeStream = Readable.fromWeb(fetchStream.body);
           return nodeStream.pipe(res);
         }
       }
     }
-  } catch (e) {}
+  } catch (e) {
+    if (source.platform === 'direct' || source.platform === 'spotify') {
+      return res.status(502).send('The resolved media source could not be reached safely.');
+    }
+  }
 
-  let flags = ['-o', '-', '--no-warnings', '--no-colors'];
+  let flags = ['-o', '-', '--no-warnings', '--no-colors', '--socket-timeout', '15', '--retries', '2'];
   if (isAudio) {
     flags.push('-f', 'bestaudio/best');
   } else {
@@ -93,7 +191,7 @@ app.get('/api/stream', async (req, res) => {
   
   let proc;
   try {
-    proc = spawn(ytdlpBinary, flags);
+    proc = spawn(ytdlpBinary, flags, { windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'] });
   } catch (err) {
     return res.status(500).send('Stream extraction binary failed');
   }
@@ -106,6 +204,10 @@ app.get('/api/stream', async (req, res) => {
     }
   });
 
+  proc.on('close', (code) => {
+    if (code && !res.writableEnded) res.destroy(new Error('Media extraction ended unexpectedly.'));
+  });
+
   proc.stderr.on('data', () => {});
 
   req.on('close', () => {
@@ -113,6 +215,13 @@ app.get('/api/stream', async (req, res) => {
       if (proc) proc.kill();
     } catch (e) {}
   });
+});
+
+app.use((error, req, res, next) => {
+  if (!error) return next();
+  if (error.type === 'entity.too.large') return res.status(413).json({ error: 'Request body is too large.' });
+  if (error instanceof SyntaxError && error.status === 400) return res.status(400).json({ error: 'Malformed JSON request.' });
+  return next(error);
 });
 
 // Custom 404 Error Handler

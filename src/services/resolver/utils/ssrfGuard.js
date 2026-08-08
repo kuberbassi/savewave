@@ -3,26 +3,45 @@
   * Validates target URLs to prevent server-side request forgery against private networks or internal services.
   */
 
+const dns = require('dns').promises;
+const net = require('net');
+
 function isPrivateIp(ip) {
   if (!ip) return false;
+  const normalized = ip.toLowerCase().split('%')[0];
+
+  if (normalized.startsWith('::ffff:')) return isPrivateIp(normalized.slice(7));
+
+  if (net.isIP(normalized) === 6) {
+    return normalized === '::' || normalized === '::1' || normalized.startsWith('fc') ||
+      normalized.startsWith('fd') || /^fe[89ab]/.test(normalized) || normalized.startsWith('ff');
+  }
+
+  if (net.isIP(normalized) !== 4) return false;
+  const octets = normalized.split('.').map(Number);
+  const [a, b] = octets;
   // IPv4 Private/Loopback/Link-Local/Multicast ranges
-  if (
-    ip === '127.0.0.1' ||
-    ip === '0.0.0.0' ||
-    ip.startsWith('10.') ||
-    ip.startsWith('192.168.') ||
-    ip.startsWith('169.254.') ||
-    (ip.startsWith('172.') && (parseInt(ip.split('.')[1], 10) >= 16 && parseInt(ip.split('.')[1], 10) <= 31))
-  ) {
-    return true;
-  }
+  return a === 0 || a === 10 || a === 127 || a >= 224 ||
+    (a === 100 && b >= 64 && b <= 127) ||
+    (a === 169 && b === 254) ||
+    (a === 172 && b >= 16 && b <= 31) ||
+    (a === 192 && (b === 0 || b === 168)) ||
+    (a === 198 && (b === 18 || b === 19));
+}
 
-  // IPv6 Loopback/Local
-  if (ip === '::1' || ip === 'fe80::' || ip.startsWith('fd')) {
-    return true;
-  }
+async function validateRemoteUrl(targetUrl) {
+  const basic = validateUrl(targetUrl);
+  if (!basic.valid) return basic;
 
-  return false;
+  try {
+    const addresses = await dns.lookup(basic.parsedUrl.hostname, { all: true, verbatim: true });
+    if (!addresses.length || addresses.some(({ address }) => isPrivateIp(address))) {
+      return { valid: false, reason: 'The URL resolves to a restricted network address' };
+    }
+    return { ...basic, addresses };
+  } catch {
+    return { valid: false, reason: 'The URL hostname could not be resolved' };
+  }
 }
 
 function validateUrl(targetUrl) {
@@ -61,5 +80,6 @@ function validateUrl(targetUrl) {
 
 module.exports = {
   validateUrl,
+  validateRemoteUrl,
   isPrivateIp
 };

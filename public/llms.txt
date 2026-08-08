@@ -1,47 +1,23 @@
 # Savewave
 
-> Savewave is a privacy-focused universal media downloader created by Kuber Bassi.
+> Savewave is a privacy-focused resolver and downloader for supported public media links, created by Kuber Bassi.
 
-Savewave provides a simple workflow:
+## Product
 
-Paste → Resolve → Save
+- Workflow: Paste -> Resolve -> Preview -> Save
+- Supports public media from YouTube, Instagram, Facebook, Threads, X/Twitter, SoundCloud, and direct media URLs.
+- Spotify links use public metadata to find a high-confidence matching audio source; Savewave does not download audio from Spotify.
+- Private, login-gated, and Story media is rejected. Cookies and browser sessions are not accepted.
+- No accounts, database, or permanent server-side media storage.
+- Download history is bounded and stored only in the user's browser.
 
-## Features
+## Links
 
-- Automatic media source detection
-- Automatic best available quality selection
-- Video and audio handling where supported
-- No user accounts
-- No database
-- Local browser history
-- No permanent server-side media storage
-- Stateless media resolution where possible
+- Website: https://savewave.kuberbassi.com/
+- Source: https://github.com/kuberbassi/savewave
+- Creator: https://kuberbassi.com/
 
-## Supported Sources
+## Documentation
 
-- YouTube (videos, Shorts, audio)
-- Instagram (Reels, posts, videos, images, carousels, Stories)
-- Facebook (videos, Reels, public post media)
-- Threads (public images, public videos)
-- X / Twitter (videos, images)
-- SoundCloud (audio)
-- Spotify (metadata + Smart Match audio source)
-- Direct Media (MP4, WebM, MP3, M4A, AAC, OGG, WAV, FLAC, JPG, PNG, WebP)
-
-## Privacy
-
-Savewave does not require user accounts or a database.
-
-Download history is stored locally on the user's device.
-
-Media is not permanently stored by Savewave servers.
-
-Media is downloaded directly from its source when technically supported.
-
-## Website
-
-https://savewave.kuberbassi.com
-
-## Creator
-
-Kuber Bassi
+- Full product notes: https://savewave.kuberbassi.com/llms-full.txt
+- README: https://github.com/kuberbassi/savewave#readme
