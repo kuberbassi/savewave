@@ -22,6 +22,33 @@
 
 Savewave is a privacy-focused public-media resolver and downloader built with React, Express, `yt-dlp`, and Vitest. It follows one focused flow: **Paste → Resolve → Preview → Save**.
 
+## Tech architecture
+
+| Technology | Role in Savewave |
+| :--- | :--- |
+| React 18 | Component-based frontend, responsive tabs, media previews, progress states, local history, and the complete paste-to-save user flow. |
+| JavaScript + Babel | JSX application source and production browser compilation without introducing a larger frontend framework. |
+| Tailwind CSS + modular CSS | Utility generation, design tokens, reusable component styles, responsive layouts, themes, motion, and accessibility states. |
+| Node.js 20+ | Server runtime for link validation, source detection, media resolution, streaming, and download preparation. |
+| Express 4 | Lightweight HTTP server, JSON API endpoints, static frontend delivery, request limits, security headers, and download routes. |
+| yt-dlp | Public-media extraction and format discovery for supported video, audio, and social platforms. |
+| Spotify Smart Match | Deterministic title, artist, duration, version, source-authenticity, and ambiguity scoring against public audio candidates. |
+| Undici | Restricted outbound HTTP requests with connection controls and SSRF-safe URL validation. |
+| Browser localStorage | Device-only, bounded download history with no account, database, or cloud synchronization. |
+| Vitest + Supertest | Unit and integration coverage for resolvers, security rules, API behavior, SEO files, and provider reliability. |
+| Vercel | Production hosting, Express routing, static asset delivery, and deployment configuration. |
+
+```text
+React interface
+    → Express API
+        → URL validation and platform detection
+            → Platform resolver / Spotify Smart Match
+                → Verified public media source
+                    → Preview → Save
+```
+
+Savewave intentionally uses React with a small Express backend; it is **not a Next.js application**. This keeps the architecture direct, understandable, and easy to maintain.
+
 ## What it supports
 
 | Platform | Supported public media |
