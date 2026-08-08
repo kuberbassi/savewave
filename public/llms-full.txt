@@ -1,0 +1,146 @@
+# Savewave
+
+## Overview
+
+Savewave is a privacy-focused universal media and file downloader created by Kuber Bassi.
+
+Its core interaction is:
+
+Paste → Resolve → Save
+
+A user provides a supported URL. Savewave identifies the source, resolves the available media or file, automatically chooses the best sensible available version, and provides the result for download.
+
+## Design Philosophy
+
+Savewave intentionally minimizes configuration.
+
+Users generally do not need to manually choose:
+- codecs
+- video resolution presets
+- audio bitrate presets
+- containers
+- advanced download settings
+
+Where applicable, users only choose between Video and Audio.
+
+Savewave handles source and quality selection automatically.
+
+## Supported Sources
+
+### YouTube
+Supports publicly resolvable videos, Shorts and audio extraction where available.
+
+### Instagram
+Supports publicly resolvable:
+- posts
+- images
+- videos
+- Reels
+- carousels
+- Stories when available without restricted authentication
+
+### Facebook
+Supports publicly resolvable:
+- videos
+- Reels
+- public post media
+
+### Threads
+Supports publicly resolvable post images and videos.
+
+### X / Twitter
+Supports publicly resolvable images and videos.
+
+### SoundCloud
+Supports publicly available audio where the source permits resolution/download.
+
+### Spotify
+Spotify integration is primarily metadata-based.
+
+Savewave does not claim that Spotify's official API provides downloadable track audio.
+
+Where implemented, Savewave may use track metadata such as:
+- title
+- artist
+- album
+- duration
+
+to identify a matching downloadable source.
+
+Externally matched audio should be identified as:
+MATCHED AUDIO SOURCE
+
+### Google Drive
+Supports appropriate public/shared downloadable files.
+
+### Dropbox
+Supports appropriate public/shared downloadable files.
+
+### Direct URLs
+Supports direct downloadable URLs such as:
+- video
+- audio
+- images
+- PDFs
+- archives
+- other ordinary files
+
+Original files are preserved where practical.
+
+## Automatic Quality Selection
+
+Savewave automatically selects the best sensible available source.
+
+It prioritizes:
+- quality
+- compatibility
+- avoiding unnecessary transcoding
+- preserving original media
+- direct downloads where possible
+
+When separate video and audio streams need to be combined, they may be muxed without re-encoding where possible.
+
+## Privacy Architecture
+
+### No Database
+
+Savewave does not require a user database or user accounts.
+
+### Stateless Resolution
+
+Links are processed only as needed to resolve supported media.
+
+### No Permanent Media Storage
+
+Savewave does not permanently store downloaded media on its servers.
+
+Temporary processing may occur when technically required and should be cleaned immediately after processing.
+
+### Local History
+
+Download history is stored locally in the user's browser/device.
+
+It is not intended to be synchronized to a Savewave account or database.
+
+### Direct Downloads
+
+Files are downloaded directly from the original/resolved source when technically supported.
+
+## Public Pages
+
+Homepage:
+https://savewave.kuberbassi.com/
+
+Downloader:
+https://savewave.kuberbassi.com/downloader
+
+Privacy:
+https://savewave.kuberbassi.com/privacy
+
+## Creator
+
+Savewave was created by Kuber Bassi.
+
+## Website
+
+https://savewave.kuberbassi.com

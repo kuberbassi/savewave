@@ -1,0 +1,47 @@
+# Savewave
+
+> Savewave is a privacy-focused universal media downloader created by Kuber Bassi.
+
+Savewave provides a simple workflow:
+
+Paste → Resolve → Save
+
+## Features
+
+- Automatic media source detection
+- Automatic best available quality selection
+- Video and audio handling where supported
+- No user accounts
+- No database
+- Local browser history
+- No permanent server-side media storage
+- Stateless media resolution where possible
+
+## Supported Sources
+
+- YouTube (videos, Shorts, audio)
+- Instagram (Reels, posts, videos, images, carousels, Stories)
+- Facebook (videos, Reels, public post media)
+- Threads (public images, public videos)
+- X / Twitter (videos, images)
+- SoundCloud (audio)
+- Spotify (metadata + Smart Match audio source)
+- Direct Media (MP4, WebM, MP3, M4A, AAC, OGG, WAV, FLAC, JPG, PNG, WebP)
+
+## Privacy
+
+Savewave does not require user accounts or a database.
+
+Download history is stored locally on the user's device.
+
+Media is not permanently stored by Savewave servers.
+
+Media is downloaded directly from its source when technically supported.
+
+## Website
+
+https://savewave.kuberbassi.com
+
+## Creator
+
+Kuber Bassi
