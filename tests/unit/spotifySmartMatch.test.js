@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-const { scoreCandidate } = require('../../src/services/resolver/smartMatch/scoreCandidate');
+const { scoreCandidate, titleCoverage } = require('../../src/services/resolver/smartMatch/scoreCandidate');
 const { normalizeTitle, normalizeArtist } = require('../../src/services/resolver/smartMatch/normalizers');
 
 describe('Spotify Smart Match Confidence Engine (30 Requirements Test Suite)', () => {
@@ -308,5 +308,19 @@ describe('Spotify Smart Match Confidence Engine (30 Requirements Test Suite)', (
   // 30. track with "(feat. X)" formatting differences
   it('30. track with feat. formatting should normalize primary artist', () => {
     expect(normalizeArtist("Taylor Swift (feat. Bon Iver)")).toBe("taylor swift bon iver");
+  });
+
+  it('rejects a low-overlap title even when artist and duration look plausible', () => {
+    const candidate = { title: 'Starboy Documentary Interview', uploader: 'The Weeknd', duration: 230 };
+    const result = scoreCandidate({ ...baseSpotifyTrack, title: 'Starboy After Hours' }, candidate);
+    expect(titleCoverage('Starboy After Hours', candidate.title)).toBeLessThan(0.65);
+    expect(result.pass).toBe(false);
+  });
+
+  it('rejects a clean upload when the Spotify track is explicit', () => {
+    const candidate = { title: 'Starboy Clean Version', uploader: 'The Weeknd - Topic', duration: 230 };
+    const result = scoreCandidate({ ...baseSpotifyTrack, explicit: true }, candidate);
+    expect(result.penalties).toContain('Clean version does not match explicit track (-80)');
+    expect(result.pass).toBe(false);
   });
 });

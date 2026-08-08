@@ -3,24 +3,36 @@ const { createNormalizedResponse } = require('../types/normalized');
 const { sanitizeFilename } = require('../utils/sanitizer');
 const { scoreCandidate } = require('./scoreCandidate');
 const { getSpotifyMetadata } = require('./spotifyMetadata');
+const { normalizeTitle, normalizeArtist } = require('./normalizers');
 
 async function searchCandidates(queries) {
   const pool = [];
   const seen = new Set();
 
-  for (const query of queries) {
+  const searches = await Promise.allSettled(queries.map(async (query) => {
     try {
-      const result = await ytdlp(query, { dumpSingleJson: true, noWarnings: true, playlistEnd: 10 });
-      const entries = result && result.entries ? result.entries : result && result.title ? [result] : [];
-      for (const item of entries) {
-        const identity = item && (item.id || item.webpage_url || item.url);
-        if (identity && !seen.has(identity)) {
-          seen.add(identity);
-          pool.push(item);
-        }
-      }
+      const result = await ytdlp(query, {
+        dumpSingleJson: true,
+        noWarnings: true,
+        playlistEnd: 12,
+        socketTimeout: 12,
+        retries: 2
+      });
+      return result && result.entries ? result.entries : result && result.title ? [result] : [];
     } catch (error) {
       if (process.env.NODE_ENV === 'development') console.warn(`[Spotify search] ${error.message}`);
+      return [];
+    }
+  }));
+
+  for (const search of searches) {
+    const entries = search.status === 'fulfilled' ? search.value : [];
+    for (const item of entries) {
+      const identity = item && (item.id || item.webpage_url || item.url);
+      if (identity && !seen.has(identity)) {
+        seen.add(identity);
+        pool.push(item);
+      }
     }
   }
   return pool;
@@ -32,13 +44,23 @@ function candidateUrl(candidate) {
   return candidate.url || null;
 }
 
+function sameRecordingIdentity(first, second, metadata) {
+  if (!first || !second) return false;
+  const targetArtist = normalizeArtist(metadata.primaryArtist || metadata.artist);
+  const firstText = normalizeArtist(`${first.candidate.artist || first.candidate.uploader || first.candidate.channel || ''} ${first.candidate.title || ''}`);
+  const secondText = normalizeArtist(`${second.candidate.artist || second.candidate.uploader || second.candidate.channel || ''} ${second.candidate.title || ''}`);
+  return normalizeTitle(first.candidate.title).includes(normalizeTitle(metadata.title)) &&
+    normalizeTitle(second.candidate.title).includes(normalizeTitle(metadata.title)) &&
+    firstText.includes(targetArtist) && secondText.includes(targetArtist);
+}
+
 async function resolveSpotifySmartMatch(url) {
   try {
     const metadata = await getSpotifyMetadata(url);
     const candidates = await searchCandidates([
-      `ytsearch10:${metadata.primaryArtist} ${metadata.title} official audio`,
-      `ytsearch10:${metadata.title} ${metadata.artist} topic`,
-      `ytsearch10:${metadata.title} ${metadata.artist}`
+      `ytsearch12:${metadata.primaryArtist} ${metadata.title} official audio`,
+      `ytsearch12:${metadata.primaryArtist} ${metadata.title} topic`,
+      `ytsearch12:${metadata.title} ${metadata.artist}`
     ]);
     if (!candidates.length) throw new Error('No audio candidates were available for this track.');
 
@@ -47,7 +69,9 @@ async function resolveSpotifySmartMatch(url) {
       .sort((a, b) => b.score - a.score);
     const best = ranked[0];
     const runnerUp = ranked[1];
-    const ambiguous = runnerUp && best.score < 100 && best.score - runnerUp.score < 5 && candidateUrl(best.candidate) !== candidateUrl(runnerUp.candidate);
+    const ambiguous = runnerUp && best.score - runnerUp.score < 5 &&
+      candidateUrl(best.candidate) !== candidateUrl(runnerUp.candidate) &&
+      !sameRecordingIdentity(best, runnerUp, metadata);
 
     if (!best || !best.pass || ambiguous) {
       throw new Error('Could not confidently match this Spotify track. Try a direct audio or YouTube link instead.');
@@ -74,4 +98,4 @@ async function resolveSpotifySmartMatch(url) {
   }
 }
 
-module.exports = { resolveSpotifySmartMatch, searchCandidates, candidateUrl };
+module.exports = { resolveSpotifySmartMatch, searchCandidates, candidateUrl, sameRecordingIdentity };

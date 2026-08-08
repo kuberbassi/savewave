@@ -50,7 +50,14 @@ const VERSION_MARKERS = [
   'remastered',
   'lyrics',
   'reaction',
-  'tutorial'
+  'tutorial',
+  'extended',
+  'reverb',
+  'bass boosted',
+  'mashup',
+  'parody',
+  'demo',
+  'clean'
 ];
 
 function extractVersionMarkers(text) {

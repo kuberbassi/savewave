@@ -4,6 +4,19 @@
 
 const { normalizeTitle, normalizeArtist, normalizeAlbum, extractVersionMarkers } = require('./normalizers');
 
+const GENERIC_TITLE_WORDS = new Set(['official', 'audio', 'video', 'music', 'lyrics', 'lyric', 'visualizer', 'hd', 'hq']);
+
+function meaningfulTitleTokens(value) {
+  return normalizeTitle(value).split(' ').filter((token) => token && !GENERIC_TITLE_WORDS.has(token));
+}
+
+function titleCoverage(target, candidate) {
+  const targetTokens = [...new Set(meaningfulTitleTokens(target))];
+  const candidateTokens = new Set(meaningfulTitleTokens(candidate));
+  if (!targetTokens.length) return 0;
+  return targetTokens.filter((token) => candidateTokens.has(token)).length / targetTokens.length;
+}
+
 function scoreCandidate(spotifyMeta, candidate, debug = false) {
   let score = 0;
   const penalties = [];
@@ -36,6 +49,14 @@ function scoreCandidate(spotifyMeta, candidate, debug = false) {
   } else if (candTitleNorm.includes(targetTitleNorm) || targetTitleNorm.includes(candTitleNorm)) {
     score += 25;
     bonuses.push('Close Title (+25)');
+  }
+  const coverage = titleCoverage(spotifyMeta.title, candTitleRaw);
+  if (coverage < 0.65) {
+    score -= 60;
+    penalties.push('Low title token coverage (-60)');
+  } else if (coverage === 1 && targetTitleNorm !== candTitleNorm) {
+    score += 6;
+    bonuses.push('Complete title token coverage (+6)');
   }
 
   // 3. Artist Matching
@@ -126,11 +147,13 @@ function scoreCandidate(spotifyMeta, candidate, debug = false) {
       switch (marker) {
         case 'reaction':
         case 'tutorial':
+        case 'parody':
           score -= 100;
           penalties.push(`Contains unwanted '${marker}' (-100)`);
           break;
         case 'karaoke':
         case 'nightcore':
+        case 'mashup':
           score -= 70;
           penalties.push(`Contains unwanted '${marker}' (-70)`);
           break;
@@ -141,6 +164,10 @@ function scoreCandidate(spotifyMeta, candidate, debug = false) {
         case '8d':
         case 'live':
         case 'remix':
+        case 'extended':
+        case 'reverb':
+        case 'bass boosted':
+        case 'demo':
           score -= 60;
           penalties.push(`Contains unwanted '${marker}' (-60)`);
           break;
@@ -160,6 +187,11 @@ function scoreCandidate(spotifyMeta, candidate, debug = false) {
           break;
       }
     }
+  }
+
+  if (spotifyMeta.explicit && candVersionMarkers.includes('clean')) {
+    score -= 80;
+    penalties.push('Clean version does not match explicit track (-80)');
   }
 
   let confidenceLabel = 'REJECT';
@@ -184,4 +216,4 @@ function scoreCandidate(spotifyMeta, candidate, debug = false) {
   return result;
 }
 
-module.exports = { scoreCandidate };
+module.exports = { scoreCandidate, titleCoverage };

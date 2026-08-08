@@ -30,7 +30,7 @@ Private, login-gated, and Story media is intentionally rejected. Savewave does n
 
 ## Spotify matching
 
-Savewave does not download audio from Spotify. It reads public track metadata, searches public audio sources, scores title, artist, version, channel, and duration signals, and returns a result only above a strict confidence threshold. No Spotify API key or Premium account is required.
+Savewave does not download audio from Spotify. It reads the public Spotify embed metadata—including canonical artists, precise duration, release information, availability, and artwork—then searches public audio sources in parallel. Candidates are ranked using title coverage, every credited artist, duration, version markers, channel authenticity, explicit/clean compatibility, and ambiguity checks. A result is returned only above a strict confidence threshold. No Spotify API key or Premium account is required.
 
 ## Local development
 
