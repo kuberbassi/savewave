@@ -5,22 +5,30 @@ const { scoreCandidate } = require('./scoreCandidate');
 const { getSpotifyMetadata } = require('./spotifyMetadata');
 const { normalizeTitle, normalizeArtist } = require('./normalizers');
 
+const SEARCH_OPTIONS = Object.freeze({
+  dumpSingleJson: true,
+  noWarnings: true,
+  playlistEnd: 12,
+  flatPlaylist: true,
+  ignoreErrors: true,
+  skipDownload: true,
+  socketTimeout: 12,
+  retries: 2
+});
+
 async function searchCandidates(queries) {
   const pool = [];
   const seen = new Set();
 
   const searches = await Promise.allSettled(queries.map(async (query) => {
     try {
-      const result = await ytdlp(query, {
-        dumpSingleJson: true,
-        noWarnings: true,
-        playlistEnd: 12,
-        socketTimeout: 12,
-        retries: 2
-      });
+      const result = await ytdlp(query, SEARCH_OPTIONS);
       return result && result.entries ? result.entries : result && result.title ? [result] : [];
     } catch (error) {
-      if (process.env.NODE_ENV === 'development') console.warn(`[Spotify search] ${error.message}`);
+      if (process.env.NODE_ENV === 'development') {
+        const summary = String(error.message || 'search failed').split(/\r?\n/, 1)[0];
+        console.warn(`[Spotify search] ${summary}`);
+      }
       return [];
     }
   }));
@@ -98,4 +106,4 @@ async function resolveSpotifySmartMatch(url) {
   }
 }
 
-module.exports = { resolveSpotifySmartMatch, searchCandidates, candidateUrl, sameRecordingIdentity };
+module.exports = { resolveSpotifySmartMatch, searchCandidates, candidateUrl, sameRecordingIdentity, SEARCH_OPTIONS };

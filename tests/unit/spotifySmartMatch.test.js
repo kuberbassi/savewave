@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 const { scoreCandidate, titleCoverage } = require('../../src/services/resolver/smartMatch/scoreCandidate');
-const { normalizeTitle, normalizeArtist } = require('../../src/services/resolver/smartMatch/normalizers');
+const { normalizeTitle, normalizeArtist, stripFeaturedArtists } = require('../../src/services/resolver/smartMatch/normalizers');
+const { SEARCH_OPTIONS } = require('../../src/services/resolver/smartMatch/spotifyMatcher');
 
 describe('Spotify Smart Match Confidence Engine (30 Requirements Test Suite)', () => {
   const baseSpotifyTrack = {
@@ -164,6 +165,11 @@ describe('Spotify Smart Match Confidence Engine (30 Requirements Test Suite)', (
     expect(normalizeArtist('The Weeknd ft. Daft Punk')).toBe('the weeknd daft punk');
   });
 
+  it('normalizes common artist homoglyphs and preserves Cyrillic names', () => {
+    expect(normalizeArtist('KUβER βΔSSI')).toBe('kuber bassi');
+    expect(normalizeArtist('фрози')).toBe('фрози');
+  });
+
   // 15. multi-artist Spotify track
   it('15. multi-artist track matching all artists gets bonus', () => {
     const cand = {
@@ -322,5 +328,46 @@ describe('Spotify Smart Match Confidence Engine (30 Requirements Test Suite)', (
     const result = scoreCandidate({ ...baseSpotifyTrack, explicit: true }, candidate);
     expect(result.penalties).toContain('Clean version does not match explicit track (-80)');
     expect(result.pass).toBe(false);
+  });
+
+  it('keeps usable search entries when another result is inaccessible', () => {
+    expect(SEARCH_OPTIONS.flatPlaylist).toBe(true);
+    expect(SEARCH_OPTIONS.ignoreErrors).toBe(true);
+    expect(SEARCH_OPTIONS.skipDownload).toBe(true);
+  });
+
+  it('does not treat a featured-artist credit as missing song-title words', () => {
+    const track = {
+      title: 'Scissor Redemption (feat. なみちえ)',
+      artist: 'Taku Iwasaki, Namichie',
+      primaryArtist: 'Taku Iwasaki',
+      artists: ['Taku Iwasaki', 'Namichie'],
+      duration: 142
+    };
+    const candidate = { title: 'Scissor Redemption', uploader: 'Taku Iwasaki - Topic', duration: 143 };
+    expect(stripFeaturedArtists(track.title)).toBe('Scissor Redemption');
+    expect(scoreCandidate(track, candidate).pass).toBe(true);
+  });
+
+  it('normalizes accented artist aliases consistently', () => {
+    expect(normalizeArtist("L'Orchestra Cinématique")).toBe(normalizeArtist("L'Orchestra Cinematique"));
+  });
+
+  it('accepts an official Topic upload owned by another credited artist', () => {
+    const track = {
+      title: 'Brawl Stars Menu Theme Cinematic/Orchestra',
+      artist: 'Kevin Jaret Hernandez Martinez, Hatkuvi',
+      primaryArtist: 'Kevin Jaret Hernandez Martinez',
+      artists: ['Kevin Jaret Hernandez Martinez', 'Hatkuvi'],
+      duration: 182
+    };
+    const candidate = { title: track.title, uploader: 'Hatkuvi - Topic', duration: 183 };
+    expect(scoreCandidate(track, candidate).pass).toBe(true);
+  });
+
+  it('recognizes equivalent soundtrack descriptor titles with exact artist and duration', () => {
+    const track = { title: 'Gravity Falls - Symphonic Version', artist: 'Imperial Orchestra', primaryArtist: 'Imperial Orchestra', duration: 138 };
+    const candidate = { title: 'Gravity Falls | Imperial Orchestra | Cinema Medley 3', uploader: 'Imperial Orchestra', duration: 138 };
+    expect(scoreCandidate(track, candidate).pass).toBe(true);
   });
 });

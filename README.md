@@ -1,10 +1,26 @@
-# Savewave
+<div align="center">
+  <img src="public/pwa-icon-dark.png" width="156" alt="Savewave dark squircle logo">
 
-<p align="center">
-  <img src="public/savewave-dark.png" width="120" alt="Savewave logo">
-</p>
+  <h1>Savewave</h1>
 
-Savewave is a privacy-focused public-media resolver and downloader built with React, Express, `yt-dlp`, and Vitest. It follows one focused flow: **Paste -> Resolve -> Preview -> Save**.
+  <p><strong>Private by design · No accounts · No database · Public media resolver and downloader</strong></p>
+  <p><em>Designed &amp; Developed by <a href="https://kuberbassi.com">Kuber Bassi</a></em></p>
+
+  <p><a href="https://savewave.kuberbassi.com/"><strong>⚡ Open Live Web Application »</strong></a></p>
+
+  <p>
+    <img src="https://img.shields.io/badge/React-18-61DAFB?style=flat-square&amp;logo=react&amp;logoColor=black" alt="React 18">
+    <img src="https://img.shields.io/badge/Express-4-000000?style=flat-square&amp;logo=express&amp;logoColor=white" alt="Express 4">
+    <img src="https://img.shields.io/badge/Node.js-20%2B-5FA04E?style=flat-square&amp;logo=nodedotjs&amp;logoColor=white" alt="Node.js 20 or newer">
+    <img src="https://img.shields.io/badge/yt--dlp-Media_Engine-FF0000?style=flat-square&amp;logo=youtube&amp;logoColor=white" alt="yt-dlp media engine">
+    <img src="https://img.shields.io/badge/Tests-82_passing-20C997?style=flat-square&amp;logo=vitest&amp;logoColor=white" alt="82 tests passing">
+    <img src="https://img.shields.io/badge/License-MIT-97CA00?style=flat-square" alt="MIT License">
+  </p>
+</div>
+
+---
+
+Savewave is a privacy-focused public-media resolver and downloader built with React, Express, `yt-dlp`, and Vitest. It follows one focused flow: **Paste → Resolve → Preview → Save**.
 
 ## What it supports
 
@@ -25,7 +41,7 @@ Private, login-gated, and Story media is intentionally rejected. Savewave does n
 
 - No account or application database.
 - No permanent server-side media storage.
-- Bounded download history stored locally in IndexedDB.
+- Bounded download history stored locally in the browser's local storage.
 - Final download targets are validated before the browser opens them.
 
 ## Spotify matching

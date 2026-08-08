@@ -2,9 +2,12 @@
  * Deterministic Candidate Scoring Engine for Spotify Smart Match
  */
 
-const { normalizeTitle, normalizeArtist, normalizeAlbum, extractVersionMarkers } = require('./normalizers');
+const { normalizeTitle, normalizeArtist, normalizeAlbum, stripFeaturedArtists, extractVersionMarkers } = require('./normalizers');
 
-const GENERIC_TITLE_WORDS = new Set(['official', 'audio', 'video', 'music', 'lyrics', 'lyric', 'visualizer', 'hd', 'hq']);
+const GENERIC_TITLE_WORDS = new Set([
+  'official', 'audio', 'video', 'music', 'lyrics', 'lyric', 'visualizer', 'hd', 'hq',
+  'main', 'theme', 'version', 'symphonic', 'cinematic', 'cinema', 'orchestra', 'orchestral', 'medley'
+]);
 
 function meaningfulTitleTokens(value) {
   return normalizeTitle(value).split(' ').filter((token) => token && !GENERIC_TITLE_WORDS.has(token));
@@ -22,13 +25,16 @@ function scoreCandidate(spotifyMeta, candidate, debug = false) {
   const penalties = [];
   const bonuses = [];
 
-  const targetTitleNorm = normalizeTitle(spotifyMeta.title);
+  const targetTitleForMatch = stripFeaturedArtists(spotifyMeta.title);
+  const targetTitleNorm = normalizeTitle(targetTitleForMatch);
   const targetArtistNorm = normalizeArtist(spotifyMeta.artist || spotifyMeta.primaryArtist);
   const targetAlbumNorm = normalizeAlbum(spotifyMeta.album || '');
   const targetDuration = spotifyMeta.duration; // seconds or null
 
   const candTitleRaw = candidate.title || '';
-  const candTitleNorm = normalizeTitle(candTitleRaw);
+  const candidateTitleForMatch = stripFeaturedArtists(candTitleRaw);
+  const candTitleNorm = normalizeTitle(candidateTitleForMatch);
+  const candTitleArtistNorm = normalizeArtist(candTitleRaw);
   const candArtistNorm = normalizeArtist(candidate.artist || candidate.uploader || candidate.channel || '');
   const candAlbumNorm = normalizeAlbum(candidate.album || '');
   const candDuration = candidate.duration;
@@ -50,8 +56,12 @@ function scoreCandidate(spotifyMeta, candidate, debug = false) {
     score += 25;
     bonuses.push('Close Title (+25)');
   }
-  const coverage = titleCoverage(spotifyMeta.title, candTitleRaw);
-  if (coverage < 0.65) {
+  const coverage = titleCoverage(targetTitleForMatch, candidateTitleForMatch);
+  if (coverage >= 0.8 && targetTitleNorm !== candTitleNorm &&
+      !candTitleNorm.includes(targetTitleNorm) && !targetTitleNorm.includes(candTitleNorm)) {
+    score += 25;
+    bonuses.push('Strong title token coverage (+25)');
+  } else if (coverage < 0.5) {
     score -= 60;
     penalties.push('Low title token coverage (-60)');
   } else if (coverage === 1 && targetTitleNorm !== candTitleNorm) {
@@ -62,10 +72,13 @@ function scoreCandidate(spotifyMeta, candidate, debug = false) {
   // 3. Artist Matching
   const primaryArtist = spotifyMeta.primaryArtist ? normalizeArtist(spotifyMeta.primaryArtist) : targetArtistNorm;
   const allArtists = (spotifyMeta.artists || [primaryArtist]).map(a => normalizeArtist(a));
-  const candArtistFull = (candArtistNorm + ' ' + candTitleNorm).toLowerCase();
+  const candArtistFull = (candArtistNorm + ' ' + candTitleArtistNorm).toLowerCase();
+  const compactCandidateArtist = candArtistFull.replace(/\s+/g, '');
 
   let primaryMatched = false;
-  if (primaryArtist && (candArtistNorm.includes(primaryArtist) || candTitleNorm.includes(primaryArtist) || candArtistFull.includes(primaryArtist.replace(/\s+/g, '')))) {
+  const matchedCreditedArtist = allArtists.find((artist) => artist && candArtistFull.includes(artist));
+  if (primaryArtist && (candArtistNorm.includes(primaryArtist) || candTitleNorm.includes(primaryArtist) ||
+      compactCandidateArtist.includes(primaryArtist.replace(/\s+/g, '')))) {
     score += 35;
     bonuses.push('Primary Artist Match (+35)');
     primaryMatched = true;
@@ -73,6 +86,9 @@ function scoreCandidate(spotifyMeta, candidate, debug = false) {
     score += 25;
     bonuses.push('Partial Artist Match (+25)');
     primaryMatched = true;
+  } else if (matchedCreditedArtist) {
+    score += 25;
+    bonuses.push('Credited Artist Match (+25)');
   } else {
     score -= 70;
     penalties.push('Wrong Primary Artist (-70)');
@@ -124,7 +140,9 @@ function scoreCandidate(spotifyMeta, candidate, debug = false) {
     score += 8;
     bonuses.push('Official Topic Channel (+8)');
   }
-  if (candidate.isOfficialArtistChannel || uploaderLower.includes('vevo') || uploaderLower.includes(primaryArtist)) {
+  const normalizedUploader = normalizeArtist(candidate.uploader || candidate.channel || '');
+  if (candidate.isOfficialArtistChannel || uploaderLower.includes('vevo') ||
+      allArtists.some((artist) => artist && normalizedUploader.includes(artist))) {
     score += 8;
     bonuses.push('Official Artist Channel (+8)');
   }
