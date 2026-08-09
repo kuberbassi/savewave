@@ -46,4 +46,27 @@ The manual `Android Release` GitHub workflow builds an ARM64 release APK only wh
 
 Generate the keystore once, keep two offline backups, and never replace it: future upgrades must be signed by the same key. The workflow decodes it only into the temporary runner directory, injects signing through environment variables, verifies the APK signature, creates a SHA-256 checksum, and uploads both artifacts. Publishing remains a separate deliberate step.
 
+### Create the Android signing secrets on Windows
+
+The four values are created by the project owner; they are not issued by GitHub, Google, or Spotify. Run this once in PowerShell. Choose strong unique passwords and save them in a password manager.
+
+```powershell
+$keytool = "C:\Program Files\Android\Android Studio\jbr\bin\keytool.exe"
+& $keytool -genkeypair -v -keystore "$env:USERPROFILE\Savewave-release.jks" -alias savewave -keyalg RSA -keysize 4096 -validity 10000
+[Convert]::ToBase64String([IO.File]::ReadAllBytes("$env:USERPROFILE\Savewave-release.jks")) | Set-Clipboard
+```
+
+Add the following under **GitHub repository → Settings → Secrets and variables → Actions → New repository secret**:
+
+| Secret | Value |
+| --- | --- |
+| `ANDROID_KEYSTORE_BASE64` | Paste the Base64 text placed on the clipboard by the second command. |
+| `ANDROID_KEY_ALIAS` | `savewave` (or the alias supplied to `-alias`). |
+| `ANDROID_STORE_PASSWORD` | The keystore password entered during generation. |
+| `ANDROID_KEY_PASSWORD` | The key password entered during generation; it may be the same, but a distinct password is preferable. |
+
+Store the `.jks` file and passwords in at least two secure offline locations. Never commit the keystore, Base64 text, or passwords. Losing the key prevents existing Android installations from accepting future upgrades; exposing it allows someone else to sign a malicious update as Savewave.
+
+After adding all four secrets, rerun **Actions → Android Release → Run workflow** for the release tag. Verify the resulting APK signature and checksum before linking it publicly.
+
 Do not advertise an Android release until resolve, download, progress, cancellation, MediaStore saving, upgrade, and uninstall behavior have passed on real devices.
