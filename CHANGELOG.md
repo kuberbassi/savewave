@@ -1,5 +1,23 @@
 # Changelog
 
+## v1.0.4 — Android compatibility
+
+### Fixed
+
+- Preserved the native Android media plugin in optimized release builds to prevent startup crashes.
+- Added an ARMv7 APK for older 32-bit Samsung and other Android phones.
+- Kept APK downloads on Savewave's domain through a same-site CDN proxy instead of navigating mobile users to GitHub.
+
+### Downloads
+
+- `Savewave_1.0.4_x64-setup.exe` — Windows 10/11 64-bit installer.
+- `Savewave_1.0.4_x64-setup.exe.sha256` — checksum used to verify that installer.
+- `Savewave-android-arm64.apk` — signed Android 10+ ARM64 installer.
+- `Savewave-android-armv7.apk` — signed Android 10+ installer for older 32-bit ARM phones.
+- `Savewave-android.apk.sha256` — checksums used to verify both Android installers.
+
+[Full commit history](https://github.com/kuberbassi/savewave/commits/v1.0.4)
+
 ## v1.0.3 — Native clients
 
 Savewave now runs media extraction locally through native Windows and Android clients while keeping the public website lightweight.
@@ -23,9 +41,6 @@ Savewave now runs media extraction locally through native Windows and Android cl
 ### Security and reliability
 
 - Local-only extraction with no Savewave media upload or remote download database.
-- Prevented Android release optimization from removing the reflectively loaded native media plugin.
-- Added a signed ARMv7 APK for older 32-bit Android phones alongside the ARM64 build.
-- Android installers now download through same-site CDN proxy paths instead of navigating mobile users to GitHub.
 - URL validation, private-network rejection, bounded jobs, collision-safe filenames, cleanup, and restricted native permissions.
 - Automated TypeScript, JavaScript, Rust, Windows packaging, Android packaging, checksum, and signature checks.
 
@@ -34,8 +49,7 @@ Savewave now runs media extraction locally through native Windows and Android cl
 - `Savewave_1.0.3_x64-setup.exe` — Windows 10/11 64-bit installer.
 - `Savewave_1.0.3_x64-setup.exe.sha256` — checksum used to verify that installer.
 - `Savewave-android-arm64.apk` — signed Android 10+ ARM64 installer.
-- `Savewave-android-armv7.apk` — signed Android 10+ installer for older 32-bit ARM phones.
-- `Savewave-android.apk.sha256` — checksums used to verify both Android installers.
+- `Savewave-android-arm64.apk.sha256` — checksum used to verify the Android installer.
 - `Source code (zip)` and `Source code (tar.gz)` — GitHub-generated source archives for developers; normal users do not need them.
 
 The source archives and installers do not contain the private Android signing credentials.
