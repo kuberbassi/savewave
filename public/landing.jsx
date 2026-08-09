@@ -12,15 +12,16 @@ const OfficialIcon = ({ name }) => {
 };
 
 
-const DownloadButton = ({ href, label, detail, primary = false, disabled = false }) => (
-  <a className={`landing-download btn-chamfer ${primary ? 'is-primary' : ''} ${disabled ? 'is-disabled' : ''}`} href={disabled ? undefined : href} aria-disabled={disabled || undefined}>
+const DownloadButton = ({ href, label, detail, primary = false, disabled = false, filename }) => (
+  <a className={`landing-download btn-chamfer ${primary ? 'is-primary' : ''} ${disabled ? 'is-disabled' : ''}`} href={disabled ? undefined : href} download={filename || undefined} aria-disabled={disabled || undefined}>
     <span>{label}</span><small>{detail}</small>
   </a>
 );
 
 const LandingPage = () => {
   const [windowsUrl, setWindowsUrl] = React.useState(RELEASE_PAGE);
-  const androidUrl = 'https://github.com/kuberbassi/savewave/releases/latest/download/Savewave-android-arm64.apk';
+  const androidArm64Url = '/downloads/Savewave-android-arm64.apk';
+  const androidArmv7Url = '/downloads/Savewave-android-armv7.apk';
   React.useEffect(() => {
     fetch('/client-version.json', { cache: 'no-store' }).then((response) => response.ok ? response.json() : Promise.reject()).then((release) => {
       if (typeof release.downloadUrl === 'string' && release.downloadUrl.startsWith('https://github.com/')) setWindowsUrl(release.downloadUrl);
@@ -45,9 +46,10 @@ const LandingPage = () => {
           <p className="text-lg md:text-xl text-black/90 leading-relaxed max-w-xl mb-8">Download Savewave once, then use the same simple workflow inside the app. No accounts, cloud extraction, media uploads, or quality menus.</p>
           <div id="download" className="landing-downloads">
             <DownloadButton href={windowsUrl} label="DOWNLOAD FOR WINDOWS" detail="WINDOWS 10/11 · 64-BIT" primary />
-            <DownloadButton href={androidUrl} label="DOWNLOAD FOR ANDROID" detail="ANDROID 10+ · ARM64 APK" />
+            <DownloadButton href={androidArm64Url} filename="Savewave-android-arm64.apk" label="ANDROID — NEWER PHONES" detail="ANDROID 10+ · ARM64 APK" />
+            <DownloadButton href={androidArmv7Url} filename="Savewave-android-armv7.apk" label="ANDROID — OLDER PHONES" detail="ANDROID 10+ · 32-BIT ARM APK" />
           </div>
-          <p className="font-mono text-[10px] text-black/65 mt-4">macOS and Linux packages will appear with verified releases. Android may ask permission to install apps from this source.</p>
+          <p className="font-mono text-[10px] text-black/65 mt-4">Use the older-phone APK if the ARM64 installer does not work on an older Samsung or other 32-bit phone. Android may ask permission to install apps from this source.</p>
         </div>
 
         <div className="lg:col-span-6 paper-dark-texture border border-white/15 p-5 md:p-7 shadow-2xl btn-chamfer">

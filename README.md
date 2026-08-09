@@ -36,7 +36,7 @@ The website is intentionally an installation landing page only. It does not cont
 | Cookies/private media | No | No | No |
 | Cloud extraction/upload | No | No | No |
 
-Android source, the Tauri project, and the native media-plugin bridge are included, and an arm64 debug APK builds successfully with JDK 21, Android SDK 36, and NDK r28c. A signed Android release still requires a release keystore plus real-device resolve, download, cancellation, MediaStore, upgrade, and uninstall validation. There is no iOS target. Until that validation is complete, the Android download button must not advertise a nonexistent public release.
+Android source, the Tauri project, and the native media-plugin bridge are included. Release automation produces signed ARM64 and ARMv7 APKs for Android 10+; the ARMv7 file is intended for older 32-bit Samsung and other Android phones. Real-device resolve, download, cancellation, MediaStore, upgrade, and uninstall validation is still required. There is no iOS target.
 
 ## Architecture
 

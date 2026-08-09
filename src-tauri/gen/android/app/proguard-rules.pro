@@ -19,3 +19,14 @@
 # If you keep the line number information, uncomment this to
 # hide the original source file name.
 #-renamesourcefileattribute SourceFile
+
+# Tauri discovers mobile plugins by their configured class name. R8 cannot see
+# that reflective lookup, so a release build must retain the plugin class and
+# its annotated command methods.
+-keep @app.tauri.annotation.TauriPlugin class * extends app.tauri.plugin.Plugin { *; }
+-keepclassmembers class * {
+    @app.tauri.annotation.Command <methods>;
+}
+
+# Keep useful source locations in release crash reports.
+-keepattributes SourceFile,LineNumberTable,*Annotation*

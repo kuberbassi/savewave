@@ -20,6 +20,16 @@ app.use((req, res, next) => {
 app.use(express.json({ limit: '8kb' }));
 app.use(express.static(path.join(__dirname, 'public')));
 
+const androidInstallers = {
+  'Savewave-android-arm64.apk': 'https://github.com/kuberbassi/savewave/releases/latest/download/Savewave-android-arm64.apk',
+  'Savewave-android-armv7.apk': 'https://github.com/kuberbassi/savewave/releases/latest/download/Savewave-android-armv7.apk'
+};
+app.get('/downloads/:filename', (req, res, next) => {
+  const destination = androidInstallers[req.params.filename];
+  if (!destination) return next();
+  return res.redirect(307, destination);
+});
+
 app.use('/api', (req, res, next) => {
   const now = Date.now();
   const key = req.ip || req.socket.remoteAddress || 'unknown';

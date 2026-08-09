@@ -46,15 +46,18 @@ const DownloadButton = ({
   label,
   detail,
   primary = false,
-  disabled = false
+  disabled = false,
+  filename
 }) => /*#__PURE__*/React.createElement("a", {
   className: `landing-download btn-chamfer ${primary ? 'is-primary' : ''} ${disabled ? 'is-disabled' : ''}`,
   href: disabled ? undefined : href,
+  download: filename || undefined,
   "aria-disabled": disabled || undefined
 }, /*#__PURE__*/React.createElement("span", null, label), /*#__PURE__*/React.createElement("small", null, detail));
 const LandingPage = () => {
   const [windowsUrl, setWindowsUrl] = React.useState(RELEASE_PAGE);
-  const androidUrl = 'https://github.com/kuberbassi/savewave/releases/latest/download/Savewave-android-arm64.apk';
+  const androidArm64Url = '/downloads/Savewave-android-arm64.apk';
+  const androidArmv7Url = '/downloads/Savewave-android-armv7.apk';
   React.useEffect(() => {
     fetch('/client-version.json', {
       cache: 'no-store'
@@ -104,12 +107,18 @@ const LandingPage = () => {
     detail: "WINDOWS 10/11 · 64-BIT",
     primary: true
   }), /*#__PURE__*/React.createElement(DownloadButton, {
-    href: androidUrl,
-    label: "DOWNLOAD FOR ANDROID",
+    href: androidArm64Url,
+    filename: "Savewave-android-arm64.apk",
+    label: "ANDROID — NEWER PHONES",
     detail: "ANDROID 10+ · ARM64 APK"
+  }), /*#__PURE__*/React.createElement(DownloadButton, {
+    href: androidArmv7Url,
+    filename: "Savewave-android-armv7.apk",
+    label: "ANDROID — OLDER PHONES",
+    detail: "ANDROID 10+ · 32-BIT ARM APK"
   })), /*#__PURE__*/React.createElement("p", {
     className: "font-mono text-[10px] text-black/65 mt-4"
-  }, "macOS and Linux packages will appear with verified releases. Android may ask permission to install apps from this source.")), /*#__PURE__*/React.createElement("div", {
+  }, "Use the older-phone APK if the ARM64 installer does not work on an older Samsung or other 32-bit phone. Android may ask permission to install apps from this source.")), /*#__PURE__*/React.createElement("div", {
     className: "lg:col-span-6 paper-dark-texture border border-white/15 p-5 md:p-7 shadow-2xl btn-chamfer"
   }, /*#__PURE__*/React.createElement("div", {
     className: "flex justify-between items-center mb-6"

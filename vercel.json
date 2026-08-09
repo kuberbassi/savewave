@@ -1,5 +1,15 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
+  "rewrites": [
+    {
+      "source": "/downloads/Savewave-android-arm64.apk",
+      "destination": "https://github.com/kuberbassi/savewave/releases/latest/download/Savewave-android-arm64.apk"
+    },
+    {
+      "source": "/downloads/Savewave-android-armv7.apk",
+      "destination": "https://github.com/kuberbassi/savewave/releases/latest/download/Savewave-android-armv7.apk"
+    }
+  ],
   "headers": [
     {
       "source": "/(.*)",
@@ -16,6 +26,13 @@
       "source": "/api/(.*)",
       "headers": [
         { "key": "Cache-Control", "value": "no-store, no-cache, must-revalidate" }
+      ]
+    },
+    {
+      "source": "/downloads/(.*)",
+      "headers": [
+        { "key": "Cache-Control", "value": "public, max-age=0, must-revalidate" },
+        { "key": "Content-Disposition", "value": "attachment" }
       ]
     },
     {
