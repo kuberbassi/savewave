@@ -46,7 +46,7 @@ jobs:
       - name: Preserve ARM64 APK
         shell: bash
         run: |
-          APK="$(find src-tauri/gen/android/app/build/outputs/apk/arm64/release -type f -name '*.apk' | head -n 1)"
+          APK="$(find src-tauri/gen/android/app/build/outputs/apk -type f -path '*/release/*.apk' -printf '%T@ %p\n' | sort -nr | head -n 1 | cut -d' ' -f2-)"
           test -n "$APK" || { echo "Signed ARM64 APK was not produced"; exit 1; }
           cp "$APK" Savewave-android-arm64.apk
       - name: Build signed ARMv7 APK for older phones
@@ -59,7 +59,7 @@ jobs:
       - name: Preserve ARMv7 APK
         shell: bash
         run: |
-          APK="$(find src-tauri/gen/android/app/build/outputs/apk/arm/release -type f -name '*.apk' | head -n 1)"
+          APK="$(find src-tauri/gen/android/app/build/outputs/apk -type f -path '*/release/*.apk' -printf '%T@ %p\n' | sort -nr | head -n 1 | cut -d' ' -f2-)"
           test -n "$APK" || { echo "Signed ARMv7 APK was not produced"; exit 1; }
           cp "$APK" Savewave-android-armv7.apk
       - name: Verify and checksum
