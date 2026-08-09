@@ -30,8 +30,10 @@ Savewave now runs media extraction locally through native Windows and Android cl
 
 - `Savewave_1.0.3_x64-setup.exe` — Windows 10/11 64-bit installer.
 - `Savewave_1.0.3_x64-setup.exe.sha256` — checksum used to verify that installer.
+- `Savewave-android-arm64.apk` — signed Android 10+ ARM64 installer.
+- `Savewave-android-arm64.apk.sha256` — checksum used to verify the Android installer.
 - `Source code (zip)` and `Source code (tar.gz)` — GitHub-generated source archives for developers; normal users do not need them.
 
-The signed Android APK will be attached as `Savewave-android-arm64.apk` after the repository's Android signing secrets are configured. The source archives and Windows installer do not contain those private signing credentials.
+The source archives and installers do not contain the private Android signing credentials.
 
 [Full commit history](https://github.com/kuberbassi/savewave/commits/v1.0.3)
