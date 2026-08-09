@@ -8,49 +8,20 @@ const HISTORY_STORAGE_LIMIT = 50;
 const HISTORY_PAGE_SIZE = 8;
 const RESOLVE_TIMEOUT_MS = 30000;
 const DOWNLOAD_PREPARE_TIMEOUT_MS = 45000;
-const SUPPORTED_PLATFORMS = [{
-  name: 'YOUTUBE',
-  label: 'YouTube',
-  capability: 'VIDEO + AUDIO',
-  title: 'YouTube videos, Shorts, and audio'
-}, {
-  name: 'INSTAGRAM',
-  label: 'Instagram',
-  capability: 'REELS + POSTS',
-  title: 'Public Instagram Reels, posts, and carousels'
-}, {
-  name: 'FACEBOOK',
-  label: 'Facebook',
-  capability: 'VIDEO + REELS',
-  title: 'Public Facebook videos, Reels, and post media'
-}, {
-  name: 'TWITTER',
-  label: 'X',
-  capability: 'VIDEO + IMAGES',
-  title: 'X public videos and images'
-}, {
-  name: 'SOUNDCLOUD',
-  label: 'SoundCloud',
-  capability: 'AUDIO',
-  title: 'SoundCloud public audio tracks'
-}, {
-  name: 'SPOTIFY',
-  label: 'Spotify',
-  capability: 'SMART MATCH',
-  title: 'Spotify metadata matched to available audio'
-}, {
-  name: 'DIRECT',
-  label: 'Direct Media',
-  capability: 'VIDEO + AUDIO + IMAGES',
-  title: 'Direct MP4, WebM, MP3, WAV, JPG, PNG, and WebP links'
-}];
+const {
+  platforms: SUPPORTED_PLATFORMS,
+  tickerItems: TICKER_ITEMS,
+  releasesUrl: APP_INSTALL_URL
+} = window.SavewaveConfig;
 
 // Custom Brutalist Dialogue Modal Component
 const BrutalistModal = ({
   isOpen,
   title,
   message,
-  onClose
+  onClose,
+  primaryAction,
+  secondaryAction
 }) => {
   if (!isOpen) return null;
   return /*#__PURE__*/React.createElement("div", {
@@ -70,10 +41,18 @@ const BrutalistModal = ({
     className: "font-mono text-xs uppercase tracking-widest text-[#e03d27] font-bold"
   }, title || 'SYSTEM NOTICE')), /*#__PURE__*/React.createElement("p", {
     className: "font-mono text-xs text-zinc-200 leading-relaxed mb-6"
-  }, message), /*#__PURE__*/React.createElement("button", {
+  }, message), /*#__PURE__*/React.createElement("div", {
+    className: "modal-actions"
+  }, primaryAction && /*#__PURE__*/React.createElement("button", {
+    onClick: primaryAction.onClick,
+    className: "btn-chamfer font-mono text-xs uppercase font-bold bg-[#e03d27] text-white hover:bg-[#b82a17] py-3 px-4 border border-white/20 transition-all cursor-pointer"
+  }, primaryAction.label), secondaryAction && /*#__PURE__*/React.createElement("button", {
+    onClick: secondaryAction.onClick,
+    className: "btn-chamfer font-mono text-xs uppercase font-bold bg-transparent text-white hover:bg-white/10 py-3 px-4 border border-white/30 transition-all cursor-pointer"
+  }, secondaryAction.label), /*#__PURE__*/React.createElement("button", {
     onClick: onClose,
-    className: "btn-chamfer font-mono text-xs uppercase font-bold bg-[#e03d27] text-white hover:bg-[#b82a17] w-full py-3 px-4 border border-white/20 transition-all cursor-pointer"
-  }, "ACKNOWLEDGE")));
+    className: "btn-chamfer font-mono text-xs uppercase font-bold bg-[#202024] text-white hover:bg-[#2c2c31] py-3 px-4 border border-white/20 transition-all cursor-pointer"
+  }, primaryAction ? 'LATER' : 'ACKNOWLEDGE'))));
 };
 
 // Reusable Official SVG Platform Icons
@@ -116,7 +95,7 @@ const PlatformIcon = ({
       }));
     case 'SOUNDCLOUD':
       return /*#__PURE__*/React.createElement("svg", {
-        className: `${className} text-white`,
+        className: `${className} text-[#ff7800]`,
         viewBox: "0 0 24 24",
         fill: "currentColor",
         role: "img",
@@ -268,16 +247,28 @@ const SavewaveApp = () => {
   const [resolveProgress, setResolveProgress] = useState(0);
   const [downloading, setDownloading] = useState(false);
   const [downloadProgress, setDownloadProgress] = useState(0);
+  const [activeJobId, setActiveJobId] = useState(null);
   const [mediaInfo, setMediaInfo] = useState(null);
   const [resolvedInput, setResolvedInput] = useState(null);
   const [clientHistory, setClientHistory] = useState([]);
   const [visibleHistoryCount, setVisibleHistoryCount] = useState(HISTORY_PAGE_SIZE);
+  const engineRef = useRef(window.SavewaveCore.createMediaEngine());
+  const [engineStatus, setEngineStatus] = useState({
+    state: 'checking',
+    platform: engineRef.current.getPlatform(),
+    version: null
+  });
+  const activeJobRef = useRef(null);
+  const lastEngineCheckRef = useRef(0);
+  const engineRetryCountRef = useRef(0);
 
   // Modal dialog state
   const [modalConfig, setModalConfig] = useState({
     isOpen: false,
     title: '',
-    message: ''
+    message: '',
+    primaryAction: null,
+    secondaryAction: null
   });
   const mainContentRef = useRef(null);
   const resolveRequestRef = useRef(null);
@@ -285,7 +276,74 @@ const SavewaveApp = () => {
   useEffect(() => () => {
     if (resolveRequestRef.current) resolveRequestRef.current.abort();
     if (downloadRequestRef.current) downloadRequestRef.current.abort();
+    if (activeJobRef.current) engineRef.current.cancelDownload(activeJobRef.current).catch(() => {});
   }, []);
+  const checkEngine = async (force = false) => {
+    const now = Date.now();
+    if (!force && now - lastEngineCheckRef.current < 30000) return;
+    lastEngineCheckRef.current = now;
+    setEngineStatus(current => ({
+      ...current,
+      state: 'checking'
+    }));
+    try {
+      const status = await engineRef.current.getEngineStatus();
+      setEngineStatus({
+        state: status.available ? 'ready' : status.initializing ? 'checking' : 'missing',
+        platform: engineRef.current.getPlatform(),
+        ...status
+      });
+      if (status.available) engineRetryCountRef.current = 0;
+    } catch (_error) {
+      setEngineStatus({
+        state: 'missing',
+        platform: engineRef.current.getPlatform(),
+        version: null
+      });
+    }
+  };
+  useEffect(() => {
+    checkEngine(true);
+    engineRef.current.getReleaseInfo().then(release => {
+      if (!release?.updateAvailable) return;
+      setModalConfig({
+        isOpen: true,
+        title: `SAVEWAVE ${release.version} AVAILABLE`,
+        message: release.summary || 'A newer stable Savewave client is available. Update to receive reliability, compatibility, and security fixes.',
+        primaryAction: {
+          label: 'DOWNLOAD UPDATE',
+          onClick: () => window.SavewaveCore.openExternal(release.downloadUrl)
+        },
+        secondaryAction: {
+          label: 'VIEW CHANGES',
+          onClick: () => window.SavewaveCore.openExternal(release.changelogUrl)
+        }
+      });
+    }).catch(() => {});
+    const handleVisibility = () => {
+      document.documentElement.classList.toggle('app-backgrounded', document.hidden);
+      if (!document.hidden) checkEngine();
+    };
+    handleVisibility();
+    document.addEventListener('visibilitychange', handleVisibility);
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibility);
+    };
+  }, []);
+  useEffect(() => {
+    if (engineStatus.state === 'ready' || engineStatus.platform === 'web' || document.hidden) return undefined;
+    const delay = engineStatus.state === 'checking' ? 800 : 2500;
+    if (engineStatus.state === 'missing' && engineRetryCountRef.current >= 5) return undefined;
+    const timer = setInterval(() => {
+      if (engineStatus.state === 'missing') engineRetryCountRef.current += 1;
+      if (engineStatus.state === 'missing' && engineRetryCountRef.current > 5) {
+        clearInterval(timer);
+        return;
+      }
+      checkEngine(true);
+    }, delay);
+    return () => clearInterval(timer);
+  }, [engineStatus.state]);
   const navigateToTab = tabName => {
     setActiveTab(tabName);
     if (tabName === 'history') setVisibleHistoryCount(HISTORY_PAGE_SIZE);
@@ -302,7 +360,9 @@ const SavewaveApp = () => {
     setModalConfig({
       isOpen: true,
       title,
-      message
+      message,
+      primaryAction: null,
+      secondaryAction: null
     });
   };
   const closeModal = () => {
@@ -314,23 +374,30 @@ const SavewaveApp = () => {
 
   // Load local history
   useEffect(() => {
-    try {
-      const stored = JSON.parse(localStorage.getItem(HISTORY_STORAGE_KEY) || '[]');
+    window.SavewaveCore.listHistory().then(stored => {
       if (Array.isArray(stored)) setClientHistory(stored.slice(0, HISTORY_STORAGE_LIMIT));
-    } catch (e) {}
+    }).catch(() => {});
   }, []);
   const saveToLocalHistory = item => {
     try {
       setClientHistory(current => {
         const updated = [item, ...current].slice(0, HISTORY_STORAGE_LIMIT);
-        localStorage.setItem(HISTORY_STORAGE_KEY, JSON.stringify(updated));
         return updated;
       });
+      window.SavewaveCore.addHistory({
+        id: item.id,
+        title: item.title,
+        platform: item.platform || 'unknown',
+        thumbnail: item.thumbnail || null,
+        mediaType: item.mode || 'video',
+        timestamp: Date.now(),
+        localReference: item.filename || undefined
+      }).catch(() => {});
     } catch (e) {}
   };
   const clearLocalHistory = () => {
     setClientHistory([]);
-    localStorage.removeItem(HISTORY_STORAGE_KEY);
+    window.SavewaveCore.clearHistory().catch(() => {});
     setVisibleHistoryCount(HISTORY_PAGE_SIZE);
   };
   const clearInput = () => {
@@ -411,6 +478,10 @@ const SavewaveApp = () => {
     const requestedUrl = url.trim();
     const requestedMode = mode;
     if (!requestedUrl || loading) return;
+    if (engineStatus.state !== 'ready') {
+      showAlert('The local media engine is unavailable.', 'ENGINE NOT READY');
+      return;
+    }
     if (resolveRequestRef.current) resolveRequestRef.current.abort();
     setLoading(true);
     setResolveProgress(12);
@@ -422,22 +493,7 @@ const SavewaveApp = () => {
       setResolveProgress(value => Math.min(value + Math.max(2, (88 - value) * 0.12), 88));
     }, 350);
     try {
-      const res = await fetch('/api/resolve', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          url: requestedUrl,
-          mode: requestedMode
-        }),
-        signal: controller.signal
-      });
-      const data = await res.json();
-      if (!res.ok || data.error) {
-        showAlert(data.error, 'EXTRACTION FAILURE');
-        return;
-      }
+      const data = await engineRef.current.resolveMedia(requestedUrl, requestedMode);
       setMediaInfo(data);
       setResolvedInput({
         url: requestedUrl,
@@ -446,8 +502,9 @@ const SavewaveApp = () => {
       setResolveProgress(100);
     } catch (err) {
       if (controller.signal.aborted && resolveRequestRef.current !== controller) return;
-      const message = err.name === 'AbortError' ? 'The resolver took too long. Please retry in a moment.' : 'Failed to resolve this media. Check the link and your connection.';
-      showAlert(message, 'EXTRACTION ERROR');
+      const normalized = window.SavewaveCore.normalizeError(err);
+      const message = err && err.name === 'AbortError' ? 'The resolver took too long. Please retry in a moment.' : normalized.message;
+      showAlert(message, normalized.code === 'MATCH_CONFIDENCE_LOW' ? 'MATCH NOT CONFIDENT' : 'EXTRACTION ERROR');
     } finally {
       clearTimeout(timeout);
       clearInterval(progressTimer);
@@ -462,7 +519,7 @@ const SavewaveApp = () => {
   };
 
   // Download trigger
-  const triggerBrowserDownload = async () => {
+  const startNativeDownload = async () => {
     if (!mediaInfo || !resolvedInput || downloading) return;
     if (resolvedInput.url !== url.trim() || resolvedInput.mode !== mode) {
       setMediaInfo(null);
@@ -473,6 +530,7 @@ const SavewaveApp = () => {
     setDownloading(true);
     setDownloadProgress(12);
     const interval = setInterval(() => {
+      if (document.hidden) return;
       setDownloadProgress(prev => {
         if (prev >= 90) {
           clearInterval(interval);
@@ -481,60 +539,58 @@ const SavewaveApp = () => {
         return Math.min(prev + Math.max(2, (90 - prev) * 0.14), 90);
       });
     }, 300);
-    let streamMode = mode === 'audio' ? 'mp3' : 'mp4';
-    let fileExt = streamMode;
-    if (mediaInfo && mediaInfo.filename && mediaInfo.filename.includes('.')) {
-      const parsedExt = mediaInfo.filename.split('.').pop().toLowerCase();
-      if (['jpg', 'jpeg', 'png', 'webp', 'gif', 'svg'].includes(parsedExt)) {
-        fileExt = parsedExt;
-      }
-    }
-    const targetUrl = mediaInfo.download && mediaInfo.download.directUrl || mediaInfo.directUrl || resolvedInput.url;
-    const downloadFilename = mediaInfo.filename || `${mediaInfo.title}.${fileExt}`;
-    const controller = new AbortController();
-    downloadRequestRef.current = controller;
-    const prepareTimeout = setTimeout(() => controller.abort(), DOWNLOAD_PREPARE_TIMEOUT_MS);
     try {
-      const response = await fetch('/api/prepare-download', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          url: targetUrl,
-          mode: fileExt,
-          title: mediaInfo.title
-        }),
-        signal: controller.signal
+      const job = await engineRef.current.downloadMedia({
+        url: mediaInfo.sourceUrl || resolvedInput.url,
+        mode,
+        title: mediaInfo.title
       });
-      const prepared = await response.json();
-      if (!response.ok || !prepared.downloadUrl) throw new Error(prepared.error || 'Download preparation failed.');
+      activeJobRef.current = job.jobId;
+      setActiveJobId(job.jobId);
+      let completed = await engineRef.current.getDownloadProgress(job.jobId);
+      while (!['completed', 'cancelled', 'error'].includes(completed.state)) {
+        if (Number.isFinite(completed.percent)) setDownloadProgress(completed.percent);
+        await new Promise(resolveDelay => setTimeout(resolveDelay, document.hidden ? 2000 : 750));
+        completed = await engineRef.current.getDownloadProgress(job.jobId);
+      }
+      if (completed.state === 'cancelled') throw Object.assign(new Error('Download cancelled.'), {
+        code: 'CANCELLED'
+      });
+      if (completed.state === 'error') {
+        throw Object.assign(new Error(completed.errorMessage || 'Download failed.'), {
+          code: completed.errorCode || 'DOWNLOAD_FAILED'
+        });
+      }
       setDownloadProgress(100);
-      const a = document.createElement('a');
-      a.href = prepared.downloadUrl;
-      a.download = prepared.filename || downloadFilename;
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
       saveToLocalHistory({
         id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
         title: mediaInfo.title,
         uploader: mediaInfo.creator || mediaInfo.uploader,
-        mode,
-        timestamp: new Date().toLocaleString()
+        platform: typeof mediaInfo.platform === 'string' ? mediaInfo.platform : 'unknown',
+        thumbnail: mediaInfo.thumbnail || null,
+        mode: mediaInfo.type || mode,
+        timestamp: Date.now(),
+        filename: completed.filename
       });
+      showAlert(`${completed.filename || mediaInfo.title} was saved to your Downloads folder.`, 'DOWNLOAD COMPLETE');
     } catch (error) {
       const message = error.name === 'AbortError' ? 'Download preparation took too long. Please retry.' : error.message || 'Could not prepare this download.';
       showAlert(message, 'DOWNLOAD ERROR');
     } finally {
-      clearTimeout(prepareTimeout);
+      activeJobRef.current = null;
+      setActiveJobId(null);
       clearInterval(interval);
-      if (downloadRequestRef.current === controller) downloadRequestRef.current = null;
       setTimeout(() => {
         setDownloading(false);
         setDownloadProgress(0);
       }, 450);
     }
+  };
+  const cancelDownload = async () => {
+    if (!activeJobRef.current) return;
+    try {
+      await engineRef.current.cancelDownload(activeJobRef.current);
+    } catch (_error) {}
   };
   return /*#__PURE__*/React.createElement("div", {
     className: "relative z-10 min-h-screen flex flex-col justify-between"
@@ -544,6 +600,8 @@ const SavewaveApp = () => {
     isOpen: modalConfig.isOpen,
     title: modalConfig.title,
     message: modalConfig.message,
+    primaryAction: modalConfig.primaryAction,
+    secondaryAction: modalConfig.secondaryAction,
     onClose: closeModal
   }), /*#__PURE__*/React.createElement("nav", {
     className: "relative z-20 border-b border-black/20 px-4 sm:px-6 md:px-12 py-4 md:py-5 flex items-center justify-between gap-3"
@@ -583,7 +641,7 @@ const SavewaveApp = () => {
     className: activeTab === tab ? 'is-active' : '',
     "aria-current": activeTab === tab ? 'page' : undefined
   }, tab === 'history' ? 'History' : tab.charAt(0).toUpperCase() + tab.slice(1)))), /*#__PURE__*/React.createElement("div", {
-    className: "relative z-10 max-w-6xl mx-auto px-4 sm:px-6 pt-9 md:pt-12 pb-10 md:pb-12 w-full grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-12 items-center"
+    className: "app-hero relative z-10 max-w-6xl mx-auto px-4 sm:px-6 pt-9 md:pt-12 pb-10 md:pb-12 w-full grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-12 items-center"
   }, /*#__PURE__*/React.createElement("div", {
     className: "lg:col-span-6 flex flex-col justify-center"
   }, /*#__PURE__*/React.createElement("h1", {
@@ -592,13 +650,13 @@ const SavewaveApp = () => {
     className: "opacity-90"
   }, "No accounts. No storage.")), /*#__PURE__*/React.createElement("p", {
     className: "text-base sm:text-lg md:text-xl font-normal text-black/90 max-w-xl leading-relaxed mb-7 md:mb-8"
-  }, "Paste a supported media link. Savewave detects the source, resolves the best available media, and sends it to your browser. Nothing is stored."), /*#__PURE__*/React.createElement("div", {
+  }, "Paste a public media link. Savewave resolves it locally and automatically saves the best available quality in the most suitable extension."), /*#__PURE__*/React.createElement("div", {
     className: "flex flex-wrap items-center gap-4"
   }, /*#__PURE__*/React.createElement(RigButton, {
     variant: "primary",
     className: "text-sm py-4 px-8",
     onClick: () => navigateToTab('downloader')
-  }, "OPEN SAVEWAVE"), /*#__PURE__*/React.createElement(RigButton, {
+  }, "START DOWNLOADING"), /*#__PURE__*/React.createElement(RigButton, {
     variant: "outline",
     className: "text-sm py-4 px-8 border-black/40 text-black hover:bg-black/10",
     onClick: () => navigateToTab('history')
@@ -622,8 +680,17 @@ const SavewaveApp = () => {
   }, "Paste any supported media link. Savewave detects the source automatically.")))), /*#__PURE__*/React.createElement("div", {
     className: "relative z-10 bg-black text-white py-3.5 border-y border-white/10 overflow-hidden font-mono text-xs tracking-widest uppercase my-4"
   }, /*#__PURE__*/React.createElement("div", {
-    className: "animate-marquee whitespace-nowrap flex gap-12"
-  }, /*#__PURE__*/React.createElement("span", null, "BEST AVAILABLE QUALITY"), " • ", /*#__PURE__*/React.createElement("span", null, "ZERO DATABASE"), " • ", /*#__PURE__*/React.createElement("span", null, "NO MEDIA STORAGE"), " • ", /*#__PURE__*/React.createElement("span", null, "LOCAL HISTORY"), " • ", /*#__PURE__*/React.createElement("span", null, "AUTOMATIC SOURCE DETECTION"), " • ", /*#__PURE__*/React.createElement("span", null, "DIRECT DOWNLOADS"), /*#__PURE__*/React.createElement("span", null, "BEST AVAILABLE QUALITY"), " • ", /*#__PURE__*/React.createElement("span", null, "ZERO DATABASE"), " • ", /*#__PURE__*/React.createElement("span", null, "NO MEDIA STORAGE"), " • ", /*#__PURE__*/React.createElement("span", null, "LOCAL HISTORY"), " • ", /*#__PURE__*/React.createElement("span", null, "AUTOMATIC SOURCE DETECTION"), " • ", /*#__PURE__*/React.createElement("span", null, "DIRECT DOWNLOADS"))), /*#__PURE__*/React.createElement("main", {
+    className: "landing-marquee-track",
+    "aria-label": TICKER_ITEMS.join(', ')
+  }, [0, 1].map(copy => /*#__PURE__*/React.createElement("div", {
+    className: "landing-marquee-group",
+    "aria-hidden": copy === 1,
+    key: copy
+  }, TICKER_ITEMS.map(item => /*#__PURE__*/React.createElement(React.Fragment, {
+    key: item
+  }, /*#__PURE__*/React.createElement("span", null, item), /*#__PURE__*/React.createElement("b", {
+    "aria-hidden": "true"
+  }, "•"))))))), /*#__PURE__*/React.createElement("main", {
     ref: mainContentRef,
     className: "relative z-10 paper-dark-texture border-t border-white/10 pt-8 md:pt-12 pb-16 md:pb-24 px-3 sm:px-6 md:px-12 flex-1 scroll-mt-12"
   }, /*#__PURE__*/React.createElement("div", {
@@ -635,7 +702,17 @@ const SavewaveApp = () => {
     className: "font-mono text-xs uppercase tracking-widest text-zinc-400 font-semibold"
   }, "UNIVERSAL MEDIA RESOLVER"), /*#__PURE__*/React.createElement("span", {
     className: "font-mono text-xs text-[#e03d27] font-bold"
-  }, platformInfo ? platformInfo.name : 'PASTE MEDIA LINK')), /*#__PURE__*/React.createElement("form", {
+  }, platformInfo ? platformInfo.name : 'PASTE MEDIA LINK')), /*#__PURE__*/React.createElement("div", {
+    className: `helper-status helper-${engineStatus.state}`,
+    role: "status",
+    "aria-live": "polite"
+  }, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("span", null, engineStatus.platform === 'web' ? 'WEB CAPABILITY' : 'LOCAL ENGINE'), /*#__PURE__*/React.createElement("strong", null, engineStatus.state === 'ready' ? engineStatus.platform === 'web' ? 'LIMITED' : 'CONNECTED' : engineStatus.state === 'checking' ? 'CHECKING' : 'UNAVAILABLE')), engineStatus.platform === 'web' && engineStatus.state === 'ready' && /*#__PURE__*/React.createElement("div", {
+    className: "helper-actions"
+  }, /*#__PURE__*/React.createElement("span", null, "Direct media works here. Full source support is available in the Savewave app."), /*#__PURE__*/React.createElement("a", {
+    href: APP_INSTALL_URL,
+    target: "_blank",
+    rel: "noopener noreferrer"
+  }, /Android/i.test(navigator.userAgent) ? 'GET SAVEWAVE FOR ANDROID' : 'DOWNLOAD SAVEWAVE'))), /*#__PURE__*/React.createElement("form", {
     onSubmit: handleResolve
   }, /*#__PURE__*/React.createElement("div", {
     className: "flex flex-col md:flex-row gap-3"
@@ -650,7 +727,7 @@ const SavewaveApp = () => {
     "aria-label": "Media URL",
     autoComplete: "url",
     inputMode: "url",
-    className: "w-full bg-[#0d0d0e] border border-white/20 text-white placeholder-zinc-500 font-mono text-sm p-4 md:pr-64 outline-none focus:border-[#e03d27] transition-all"
+    className: "media-url-input w-full bg-[#0d0d0e] border border-white/20 text-white placeholder-zinc-500 font-mono text-sm p-4 md:pr-64 outline-none focus:border-[#e03d27]"
   }), /*#__PURE__*/React.createElement("div", {
     className: "mt-2 md:mt-0 md:absolute md:right-4 md:top-1/2 md:-translate-y-1/2 flex flex-wrap justify-end items-center gap-2"
   }, url && /*#__PURE__*/React.createElement("button", {
@@ -666,7 +743,7 @@ const SavewaveApp = () => {
   }), platformInfo.name))), /*#__PURE__*/React.createElement(RigButton, {
     variant: "red",
     type: "submit",
-    disabled: loading,
+    disabled: loading || engineStatus.state !== 'ready',
     className: "py-4 px-8 shrink-0"
   }, loading ? /*#__PURE__*/React.createElement("div", {
     className: "rig-spinner"
@@ -701,38 +778,38 @@ const SavewaveApp = () => {
   }, /*#__PURE__*/React.createElement("div", {
     className: "font-mono text-[10px] tracking-widest text-emerald-400 mb-3"
   }, "READY TO SAVE"), /*#__PURE__*/React.createElement("div", {
-    className: "bg-[#0d0d0e] border border-white/10 p-6 flex flex-col md:flex-row gap-6 items-center justify-between card-hover-lift"
+    className: "media-preview-card bg-[#0d0d0e] border border-white/10 p-6 flex flex-col md:flex-row gap-6 items-center justify-between card-hover-lift"
   }, /*#__PURE__*/React.createElement("div", {
-    className: "flex items-center gap-5 min-w-0 flex-1"
+    className: "media-preview-main flex items-center gap-5 min-w-0 flex-1"
   }, mediaInfo.thumbnail ? /*#__PURE__*/React.createElement("img", {
     src: mediaInfo.thumbnail,
-    className: "w-20 h-20 object-cover border border-white/15 squircle-logo shrink-0",
+    className: "media-preview-art w-20 h-20 object-cover border border-white/15 squircle-logo shrink-0",
     alt: "Media artwork",
     width: "80",
     height: "80",
     loading: "lazy",
     decoding: "async"
   }) : /*#__PURE__*/React.createElement("div", {
-    className: "w-20 h-20 bg-zinc-800 border border-white/15 squircle-logo flex items-center justify-center text-zinc-400 font-mono text-[10px] shrink-0 font-bold uppercase"
+    className: "media-preview-art w-20 h-20 bg-zinc-800 border border-white/15 squircle-logo flex items-center justify-center text-zinc-400 font-mono text-[10px] shrink-0 font-bold uppercase"
   }, "MEDIA"), /*#__PURE__*/React.createElement("div", {
-    className: "min-w-0 flex-1"
+    className: "media-preview-copy min-w-0 flex-1"
   }, /*#__PURE__*/React.createElement("h3", {
-    className: "text-base font-bold text-white mb-1 truncate"
+    className: "media-preview-title text-base font-bold text-white mb-1"
   }, mediaInfo.title), /*#__PURE__*/React.createElement("p", {
-    className: "text-xs font-mono text-zinc-400 mb-2 truncate"
+    className: "media-preview-creator text-xs font-mono text-zinc-400 mb-2"
   }, mediaInfo.creator || mediaInfo.uploader || 'Savewave Engine'), /*#__PURE__*/React.createElement("div", {
-    className: "flex flex-wrap items-center gap-x-2 gap-y-1 font-mono text-[11px] text-[#e03d27]"
-  }, /*#__PURE__*/React.createElement("span", null, typeof mediaInfo.platform === 'string' ? mediaInfo.platform.toUpperCase() : mediaInfo.platform && mediaInfo.platform.name || 'WEB MEDIA'), " • ", /*#__PURE__*/React.createElement("span", null, mode.toUpperCase()), " • ", /*#__PURE__*/React.createElement("span", null, mediaInfo.qualityLabel || 'BEST AVAILABLE QUALITY')))), /*#__PURE__*/React.createElement("div", {
-    className: "w-full md:w-auto shrink-0"
+    className: "media-preview-meta flex flex-wrap items-center gap-x-2 gap-y-1 font-mono text-[11px] text-[#e03d27]"
+  }, /*#__PURE__*/React.createElement("span", null, typeof mediaInfo.platform === 'string' ? mediaInfo.platform.toUpperCase() : mediaInfo.platform && mediaInfo.platform.name || 'WEB MEDIA'), " • ", /*#__PURE__*/React.createElement("span", null, (mediaInfo.type || mode).toUpperCase()), " • ", /*#__PURE__*/React.createElement("span", null, mediaInfo.qualityLabel || 'BEST AVAILABLE QUALITY')))), /*#__PURE__*/React.createElement("div", {
+    className: "media-preview-action w-full md:w-auto shrink-0"
   }, /*#__PURE__*/React.createElement(RigButton, {
     variant: "red",
     disabled: downloading,
     className: "w-full md:w-auto py-4 px-8 text-xs",
-    onClick: triggerBrowserDownload
-  }, downloading ? 'PREPARING' : 'SAVE'), downloading && /*#__PURE__*/React.createElement("div", {
+    onClick: startNativeDownload
+  }, downloading ? 'PREPARING' : 'SAVE'), downloading && /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("div", {
     className: "slim-progress mt-2",
     role: "progressbar",
-    "aria-label": "Preparing download",
+    "aria-label": "Downloading media",
     "aria-valuemin": "0",
     "aria-valuemax": "100",
     "aria-valuenow": Math.round(downloadProgress)
@@ -740,13 +817,17 @@ const SavewaveApp = () => {
     style: {
       width: `${downloadProgress}%`
     }
-  })))))), activeTab === 'history' && /*#__PURE__*/React.createElement(RigCard, null, /*#__PURE__*/React.createElement("div", {
+  })), activeJobId && /*#__PURE__*/React.createElement("button", {
+    type: "button",
+    className: "download-cancel",
+    onClick: cancelDownload
+  }, "CANCEL")))))), activeTab === 'history' && /*#__PURE__*/React.createElement(RigCard, null, /*#__PURE__*/React.createElement("div", {
     className: "flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4 mb-6"
   }, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("h2", {
     className: "font-mono text-xs uppercase tracking-widest text-zinc-400 font-semibold"
-  }, "LOCAL BROWSER HISTORY"), /*#__PURE__*/React.createElement("small", {
+  }, "ON-DEVICE DOWNLOAD HISTORY"), /*#__PURE__*/React.createElement("small", {
     className: "text-[11px] text-zinc-500 font-mono"
-  }, "Stored only on this device • Never synced")), clientHistory.length > 0 && /*#__PURE__*/React.createElement(RigButton, {
+  }, "Stored locally by this app • Never synced")), clientHistory.length > 0 && /*#__PURE__*/React.createElement(RigButton, {
     variant: "outline",
     className: "py-2 px-4 text-[10px]",
     onClick: clearLocalHistory
@@ -763,7 +844,7 @@ const SavewaveApp = () => {
     className: "text-xs font-medium text-white truncate"
   }, item.title), /*#__PURE__*/React.createElement("span", {
     className: "font-mono text-[11px] text-zinc-500"
-  }, item.uploader || 'Unknown source', " • ", (item.mode || 'media').toUpperCase(), " • ", item.timestamp || 'Unknown time')), /*#__PURE__*/React.createElement("span", {
+  }, item.uploader || item.platform || 'Unknown source', " • ", (item.mode || item.mediaType || 'media').toUpperCase(), " • ", item.timestamp ? new Date(item.timestamp).toLocaleString() : 'Unknown time')), /*#__PURE__*/React.createElement("span", {
     className: "font-mono text-[10px] text-emerald-400 shrink-0"
   }, "SAVED"))), visibleHistoryCount < clientHistory.length && /*#__PURE__*/React.createElement(RigButton, {
     variant: "outline",
@@ -772,35 +853,51 @@ const SavewaveApp = () => {
   }, "LOAD MORE (", clientHistory.length - visibleHistoryCount, ")"))), activeTab === 'privacy' && /*#__PURE__*/React.createElement(RigCard, null, /*#__PURE__*/React.createElement("h2", {
     className: "font-mono text-xs uppercase tracking-widest text-zinc-400 font-semibold mb-6"
   }, "PRIVACY ARCHITECTURE"), /*#__PURE__*/React.createElement("div", {
-    className: "flex flex-col gap-6 font-mono text-xs"
-  }, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("h3", {
+    className: "privacy-grid font-mono text-xs"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "privacy-card"
+  }, /*#__PURE__*/React.createElement("h3", {
     className: "text-sm font-bold text-white mb-1"
   }, "No Database"), /*#__PURE__*/React.createElement("p", {
     className: "text-zinc-400"
-  }, "No accounts or persistent server-side download history.")), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("h3", {
+  }, "No accounts or persistent server-side download history.")), /*#__PURE__*/React.createElement("div", {
+    className: "privacy-card"
+  }, /*#__PURE__*/React.createElement("h3", {
     className: "text-sm font-bold text-white mb-1"
-  }, "Stateless Resolution"), /*#__PURE__*/React.createElement("p", {
+  }, "Local Processing"), /*#__PURE__*/React.createElement("p", {
     className: "text-zinc-400"
-  }, "Links are processed only to resolve available media.")), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("h3", {
+  }, "Media extraction runs locally through Savewave's native on-device engine.")), /*#__PURE__*/React.createElement("div", {
+    className: "privacy-card"
+  }, /*#__PURE__*/React.createElement("h3", {
     className: "text-sm font-bold text-white mb-1"
-  }, "No Permanent Media Storage"), /*#__PURE__*/React.createElement("p", {
+  }, "No Media Upload"), /*#__PURE__*/React.createElement("p", {
     className: "text-zinc-400"
-  }, "Savewave does not permanently store downloaded media on its servers.")), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("h3", {
+  }, "Media is not uploaded to Savewave servers for processing.")), /*#__PURE__*/React.createElement("div", {
+    className: "privacy-card"
+  }, /*#__PURE__*/React.createElement("h3", {
     className: "text-sm font-bold text-white mb-1"
-  }, "Local History"), /*#__PURE__*/React.createElement("p", {
+  }, "On-Device History"), /*#__PURE__*/React.createElement("p", {
     className: "text-zinc-400"
-  }, "Download history stays on this device and can be cleared anytime.")), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("h3", {
+  }, "Bounded download history stays inside this app and can be cleared anytime.")), /*#__PURE__*/React.createElement("div", {
+    className: "privacy-card"
+  }, /*#__PURE__*/React.createElement("h3", {
     className: "text-sm font-bold text-white mb-1"
-  }, "Direct Downloads"), /*#__PURE__*/React.createElement("p", {
+  }, "Public Media Only"), /*#__PURE__*/React.createElement("p", {
     className: "text-zinc-400"
-  }, "Media is downloaded directly from the resolved source when supported.")))))), /*#__PURE__*/React.createElement("footer", {
+  }, "Private, login-gated, cookie-only, paid, and DRM-protected media is rejected.")), /*#__PURE__*/React.createElement("div", {
+    className: "privacy-card"
+  }, /*#__PURE__*/React.createElement("h3", {
+    className: "text-sm font-bold text-white mb-1"
+  }, "Source Connections"), /*#__PURE__*/React.createElement("p", {
+    className: "text-zinc-400"
+  }, "Source platforms still receive your device's network requests; Savewave does not claim anonymity.")))))), /*#__PURE__*/React.createElement("footer", {
     className: "relative z-10 bg-[#08080a] border-t border-white/10 px-6 md:px-12 py-10"
   }, /*#__PURE__*/React.createElement("div", {
     className: "max-w-6xl mx-auto flex flex-col md:flex-row justify-between items-center gap-6 font-mono text-xs text-zinc-400"
   }, /*#__PURE__*/React.createElement("div", {
     className: "flex items-center gap-3"
   }, /*#__PURE__*/React.createElement("img", {
-    src: "savewave-light.png",
+    src: "savewave-dark.png",
     className: "w-6 h-6 squircle-logo",
     alt: "Savewave Logo"
   }), /*#__PURE__*/React.createElement("span", {
@@ -818,19 +915,17 @@ const SavewaveApp = () => {
     className: "nav-link-item hover:text-white transition-colors"
   }, "PRIVACY")), /*#__PURE__*/React.createElement("div", {
     className: "flex items-center gap-5 text-[11px]"
-  }, /*#__PURE__*/React.createElement("a", {
-    href: "https://github.com/kuberbassi/savewave",
-    target: "_blank",
-    rel: "noopener noreferrer",
+  }, /*#__PURE__*/React.createElement("button", {
+    type: "button",
+    onClick: () => window.SavewaveCore.openExternal('https://github.com/kuberbassi/savewave'),
     title: "GitHub Repository",
     className: "hover:opacity-80 transition-opacity"
   }, /*#__PURE__*/React.createElement(PlatformIcon, {
     name: "GITHUB",
     className: "w-4 h-4"
-  })), /*#__PURE__*/React.createElement("a", {
-    href: "https://kuberbassi.com",
-    target: "_blank",
-    rel: "noopener noreferrer",
+  })), /*#__PURE__*/React.createElement("button", {
+    type: "button",
+    onClick: () => window.SavewaveCore.openExternal('https://kuberbassi.com'),
     title: "Kuber Bassi Website",
     className: "hover:opacity-80 transition-opacity flex items-center"
   }, /*#__PURE__*/React.createElement("img", {
@@ -851,3 +946,4 @@ const SavewaveApp = () => {
 // Render React App
 const root = ReactDOM.createRoot(document.getElementById('root'));
 root.render(/*#__PURE__*/React.createElement(SavewaveApp, null));
+requestAnimationFrame(() => document.documentElement.classList.add('app-mounted'));

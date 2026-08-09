@@ -5,19 +5,10 @@ const HISTORY_STORAGE_LIMIT = 50;
 const HISTORY_PAGE_SIZE = 8;
 const RESOLVE_TIMEOUT_MS = 30000;
 const DOWNLOAD_PREPARE_TIMEOUT_MS = 45000;
-
-const SUPPORTED_PLATFORMS = [
-  { name: 'YOUTUBE', label: 'YouTube', capability: 'VIDEO + AUDIO', title: 'YouTube videos, Shorts, and audio' },
-  { name: 'INSTAGRAM', label: 'Instagram', capability: 'REELS + POSTS', title: 'Public Instagram Reels, posts, and carousels' },
-  { name: 'FACEBOOK', label: 'Facebook', capability: 'VIDEO + REELS', title: 'Public Facebook videos, Reels, and post media' },
-  { name: 'TWITTER', label: 'X', capability: 'VIDEO + IMAGES', title: 'X public videos and images' },
-  { name: 'SOUNDCLOUD', label: 'SoundCloud', capability: 'AUDIO', title: 'SoundCloud public audio tracks' },
-  { name: 'SPOTIFY', label: 'Spotify', capability: 'SMART MATCH', title: 'Spotify metadata matched to available audio' },
-  { name: 'DIRECT', label: 'Direct Media', capability: 'VIDEO + AUDIO + IMAGES', title: 'Direct MP4, WebM, MP3, WAV, JPG, PNG, and WebP links' }
-];
+const { platforms: SUPPORTED_PLATFORMS, tickerItems: TICKER_ITEMS, releasesUrl: APP_INSTALL_URL } = window.SavewaveConfig;
 
 // Custom Brutalist Dialogue Modal Component
-const BrutalistModal = ({ isOpen, title, message, onClose }) => {
+const BrutalistModal = ({ isOpen, title, message, onClose, primaryAction, secondaryAction }) => {
   if (!isOpen) return null;
 
   return (
@@ -34,12 +25,13 @@ const BrutalistModal = ({ isOpen, title, message, onClose }) => {
           {message}
         </p>
 
-        <button
-          onClick={onClose}
-          className="btn-chamfer font-mono text-xs uppercase font-bold bg-[#e03d27] text-white hover:bg-[#b82a17] w-full py-3 px-4 border border-white/20 transition-all cursor-pointer"
-        >
-          ACKNOWLEDGE
-        </button>
+        <div className="modal-actions">
+          {primaryAction && <button onClick={primaryAction.onClick} className="btn-chamfer font-mono text-xs uppercase font-bold bg-[#e03d27] text-white hover:bg-[#b82a17] py-3 px-4 border border-white/20 transition-all cursor-pointer">{primaryAction.label}</button>}
+          {secondaryAction && <button onClick={secondaryAction.onClick} className="btn-chamfer font-mono text-xs uppercase font-bold bg-transparent text-white hover:bg-white/10 py-3 px-4 border border-white/30 transition-all cursor-pointer">{secondaryAction.label}</button>}
+          <button onClick={onClose} className="btn-chamfer font-mono text-xs uppercase font-bold bg-[#202024] text-white hover:bg-[#2c2c31] py-3 px-4 border border-white/20 transition-all cursor-pointer">
+            {primaryAction ? 'LATER' : 'ACKNOWLEDGE'}
+          </button>
+        </div>
       </div>
     </div>
   );
@@ -74,7 +66,7 @@ const PlatformIcon = ({ name, className = "w-5 h-5" }) => {
       );
     case 'SOUNDCLOUD':
       return (
-        <svg className={`${className} text-white`} viewBox="0 0 24 24" fill="currentColor" role="img" aria-label="SoundCloud">
+        <svg className={`${className} text-[#ff7800]`} viewBox="0 0 24 24" fill="currentColor" role="img" aria-label="SoundCloud">
           <path d="M23.999 14.165c-.052 1.796-1.612 3.169-3.4 3.169h-8.18a.68.68 0 0 1-.675-.683V7.862a.747.747 0 0 1 .452-.724s.75-.513 2.333-.513a5.364 5.364 0 0 1 2.763.755 5.433 5.433 0 0 1 2.57 3.54c.282-.08.574-.121.868-.12.884 0 1.73.358 2.347.992s.948 1.49.922 2.373ZM10.721 8.421c.247 2.98.427 5.697 0 8.672a.264.264 0 0 1-.53 0c-.395-2.946-.22-5.718 0-8.672a.264.264 0 0 1 .53 0ZM9.072 9.448c.285 2.659.37 4.986-.006 7.655a.277.277 0 0 1-.55 0c-.331-2.63-.256-5.02 0-7.655a.277.277 0 0 1 .556 0Zm-1.663-.257c.27 2.726.39 5.171 0 7.904a.266.266 0 0 1-.532 0c-.38-2.69-.257-5.21 0-7.904a.266.266 0 0 1 .532 0Zm-1.647.77a26.108 26.108 0 0 1-.008 7.147.272.272 0 0 1-.542 0 27.955 27.955 0 0 1 0-7.147.275.275 0 0 1 .55 0Zm-1.67 1.769c.421 1.865.228 3.5-.029 5.388a.257.257 0 0 1-.514 0c-.21-1.858-.398-3.549 0-5.389a.272.272 0 0 1 .543 0Zm-1.655-.273c.388 1.897.26 3.508-.01 5.412-.026.28-.514.283-.54 0-.244-1.878-.347-3.54-.01-5.412a.283.283 0 0 1 .56 0Zm-1.668.911c.4 1.268.257 2.292-.026 3.572a.257.257 0 0 1-.514 0c-.241-1.262-.354-2.312-.023-3.572a.283.283 0 0 1 .563 0Z" />
         </svg>
       );
@@ -180,13 +172,19 @@ const SavewaveApp = () => {
   const [resolveProgress, setResolveProgress] = useState(0);
   const [downloading, setDownloading] = useState(false);
   const [downloadProgress, setDownloadProgress] = useState(0);
+  const [activeJobId, setActiveJobId] = useState(null);
   const [mediaInfo, setMediaInfo] = useState(null);
   const [resolvedInput, setResolvedInput] = useState(null);
   const [clientHistory, setClientHistory] = useState([]);
   const [visibleHistoryCount, setVisibleHistoryCount] = useState(HISTORY_PAGE_SIZE);
+  const engineRef = useRef(window.SavewaveCore.createMediaEngine());
+  const [engineStatus, setEngineStatus] = useState({ state: 'checking', platform: engineRef.current.getPlatform(), version: null });
+  const activeJobRef = useRef(null);
+  const lastEngineCheckRef = useRef(0);
+  const engineRetryCountRef = useRef(0);
 
   // Modal dialog state
-  const [modalConfig, setModalConfig] = useState({ isOpen: false, title: '', message: '' });
+  const [modalConfig, setModalConfig] = useState({ isOpen: false, title: '', message: '', primaryAction: null, secondaryAction: null });
 
   const mainContentRef = useRef(null);
   const resolveRequestRef = useRef(null);
@@ -195,7 +193,60 @@ const SavewaveApp = () => {
   useEffect(() => () => {
     if (resolveRequestRef.current) resolveRequestRef.current.abort();
     if (downloadRequestRef.current) downloadRequestRef.current.abort();
+    if (activeJobRef.current) engineRef.current.cancelDownload(activeJobRef.current).catch(() => {});
   }, []);
+
+  const checkEngine = async (force = false) => {
+    const now = Date.now();
+    if (!force && now - lastEngineCheckRef.current < 30000) return;
+    lastEngineCheckRef.current = now;
+    setEngineStatus((current) => ({ ...current, state: 'checking' }));
+    try {
+      const status = await engineRef.current.getEngineStatus();
+      setEngineStatus({ state: status.available ? 'ready' : status.initializing ? 'checking' : 'missing', platform: engineRef.current.getPlatform(), ...status });
+      if (status.available) engineRetryCountRef.current = 0;
+    } catch (_error) {
+      setEngineStatus({ state: 'missing', platform: engineRef.current.getPlatform(), version: null });
+    }
+  };
+
+  useEffect(() => {
+    checkEngine(true);
+    engineRef.current.getReleaseInfo().then((release) => {
+      if (!release?.updateAvailable) return;
+      setModalConfig({
+        isOpen: true,
+        title: `SAVEWAVE ${release.version} AVAILABLE`,
+        message: release.summary || 'A newer stable Savewave client is available. Update to receive reliability, compatibility, and security fixes.',
+        primaryAction: { label: 'DOWNLOAD UPDATE', onClick: () => window.SavewaveCore.openExternal(release.downloadUrl) },
+        secondaryAction: { label: 'VIEW CHANGES', onClick: () => window.SavewaveCore.openExternal(release.changelogUrl) }
+      });
+    }).catch(() => {});
+    const handleVisibility = () => {
+      document.documentElement.classList.toggle('app-backgrounded', document.hidden);
+      if (!document.hidden) checkEngine();
+    };
+    handleVisibility();
+    document.addEventListener('visibilitychange', handleVisibility);
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibility);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (engineStatus.state === 'ready' || engineStatus.platform === 'web' || document.hidden) return undefined;
+    const delay = engineStatus.state === 'checking' ? 800 : 2500;
+    if (engineStatus.state === 'missing' && engineRetryCountRef.current >= 5) return undefined;
+    const timer = setInterval(() => {
+      if (engineStatus.state === 'missing') engineRetryCountRef.current += 1;
+      if (engineStatus.state === 'missing' && engineRetryCountRef.current > 5) {
+        clearInterval(timer);
+        return;
+      }
+      checkEngine(true);
+    }, delay);
+    return () => clearInterval(timer);
+  }, [engineStatus.state]);
 
   const navigateToTab = (tabName) => {
     setActiveTab(tabName);
@@ -210,7 +261,7 @@ const SavewaveApp = () => {
   };
 
   const showAlert = (message, title = 'SYSTEM NOTICE') => {
-    setModalConfig({ isOpen: true, title, message });
+    setModalConfig({ isOpen: true, title, message, primaryAction: null, secondaryAction: null });
   };
 
   const closeModal = () => {
@@ -219,25 +270,32 @@ const SavewaveApp = () => {
 
   // Load local history
   useEffect(() => {
-    try {
-      const stored = JSON.parse(localStorage.getItem(HISTORY_STORAGE_KEY) || '[]');
+    window.SavewaveCore.listHistory().then((stored) => {
       if (Array.isArray(stored)) setClientHistory(stored.slice(0, HISTORY_STORAGE_LIMIT));
-    } catch (e) { }
+    }).catch(() => {});
   }, []);
 
   const saveToLocalHistory = (item) => {
     try {
       setClientHistory((current) => {
         const updated = [item, ...current].slice(0, HISTORY_STORAGE_LIMIT);
-        localStorage.setItem(HISTORY_STORAGE_KEY, JSON.stringify(updated));
         return updated;
       });
+      window.SavewaveCore.addHistory({
+        id: item.id,
+        title: item.title,
+        platform: item.platform || 'unknown',
+        thumbnail: item.thumbnail || null,
+        mediaType: item.mode || 'video',
+        timestamp: Date.now(),
+        localReference: item.filename || undefined
+      }).catch(() => {});
     } catch (e) { }
   };
 
   const clearLocalHistory = () => {
     setClientHistory([]);
-    localStorage.removeItem(HISTORY_STORAGE_KEY);
+    window.SavewaveCore.clearHistory().catch(() => {});
     setVisibleHistoryCount(HISTORY_PAGE_SIZE);
   };
 
@@ -294,6 +352,10 @@ const SavewaveApp = () => {
     const requestedUrl = url.trim();
     const requestedMode = mode;
     if (!requestedUrl || loading) return;
+    if (engineStatus.state !== 'ready') {
+      showAlert('The local media engine is unavailable.', 'ENGINE NOT READY');
+      return;
+    }
     if (resolveRequestRef.current) resolveRequestRef.current.abort();
     setLoading(true);
     setResolveProgress(12);
@@ -306,26 +368,17 @@ const SavewaveApp = () => {
     }, 350);
 
     try {
-      const res = await fetch('/api/resolve', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ url: requestedUrl, mode: requestedMode }),
-        signal: controller.signal
-      });
-      const data = await res.json();
-      if (!res.ok || data.error) {
-        showAlert(data.error, 'EXTRACTION FAILURE');
-        return;
-      }
+      const data = await engineRef.current.resolveMedia(requestedUrl, requestedMode);
       setMediaInfo(data);
       setResolvedInput({ url: requestedUrl, mode: requestedMode });
       setResolveProgress(100);
     } catch (err) {
       if (controller.signal.aborted && resolveRequestRef.current !== controller) return;
-      const message = err.name === 'AbortError'
+      const normalized = window.SavewaveCore.normalizeError(err);
+      const message = err && err.name === 'AbortError'
         ? 'The resolver took too long. Please retry in a moment.'
-        : 'Failed to resolve this media. Check the link and your connection.';
-      showAlert(message, 'EXTRACTION ERROR');
+        : normalized.message;
+      showAlert(message, normalized.code === 'MATCH_CONFIDENCE_LOW' ? 'MATCH NOT CONFIDENT' : 'EXTRACTION ERROR');
     } finally {
       clearTimeout(timeout);
       clearInterval(progressTimer);
@@ -340,7 +393,7 @@ const SavewaveApp = () => {
   };
 
   // Download trigger
-  const triggerBrowserDownload = async () => {
+  const startNativeDownload = async () => {
     if (!mediaInfo || !resolvedInput || downloading) return;
     if (resolvedInput.url !== url.trim() || resolvedInput.mode !== mode) {
       setMediaInfo(null);
@@ -353,6 +406,7 @@ const SavewaveApp = () => {
     setDownloadProgress(12);
 
     const interval = setInterval(() => {
+      if (document.hidden) return;
       setDownloadProgress((prev) => {
         if (prev >= 90) {
           clearInterval(interval);
@@ -362,61 +416,54 @@ const SavewaveApp = () => {
       });
     }, 300);
 
-    let streamMode = mode === 'audio' ? 'mp3' : 'mp4';
-    let fileExt = streamMode;
-
-    if (mediaInfo && mediaInfo.filename && mediaInfo.filename.includes('.')) {
-      const parsedExt = mediaInfo.filename.split('.').pop().toLowerCase();
-      if (['jpg', 'jpeg', 'png', 'webp', 'gif', 'svg'].includes(parsedExt)) {
-        fileExt = parsedExt;
-      }
-    }
-
-    const targetUrl = (mediaInfo.download && mediaInfo.download.directUrl) || mediaInfo.directUrl || resolvedInput.url;
-    const downloadFilename = mediaInfo.filename || `${mediaInfo.title}.${fileExt}`;
-    const controller = new AbortController();
-    downloadRequestRef.current = controller;
-    const prepareTimeout = setTimeout(() => controller.abort(), DOWNLOAD_PREPARE_TIMEOUT_MS);
-
     try {
-      const response = await fetch('/api/prepare-download', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ url: targetUrl, mode: fileExt, title: mediaInfo.title }),
-        signal: controller.signal
-      });
-      const prepared = await response.json();
-      if (!response.ok || !prepared.downloadUrl) throw new Error(prepared.error || 'Download preparation failed.');
+      const job = await engineRef.current.downloadMedia({ url: mediaInfo.sourceUrl || resolvedInput.url, mode, title: mediaInfo.title });
+      activeJobRef.current = job.jobId;
+      setActiveJobId(job.jobId);
+      let completed = await engineRef.current.getDownloadProgress(job.jobId);
+      while (!['completed', 'cancelled', 'error'].includes(completed.state)) {
+        if (Number.isFinite(completed.percent)) setDownloadProgress(completed.percent);
+        await new Promise((resolveDelay) => setTimeout(resolveDelay, document.hidden ? 2000 : 750));
+        completed = await engineRef.current.getDownloadProgress(job.jobId);
+      }
+      if (completed.state === 'cancelled') throw Object.assign(new Error('Download cancelled.'), { code: 'CANCELLED' });
+      if (completed.state === 'error') {
+        throw Object.assign(new Error(completed.errorMessage || 'Download failed.'), {
+          code: completed.errorCode || 'DOWNLOAD_FAILED'
+        });
+      }
       setDownloadProgress(100);
-
-      const a = document.createElement('a');
-      a.href = prepared.downloadUrl;
-      a.download = prepared.filename || downloadFilename;
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
 
       saveToLocalHistory({
         id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
         title: mediaInfo.title,
         uploader: mediaInfo.creator || mediaInfo.uploader,
-        mode,
-        timestamp: new Date().toLocaleString()
+        platform: typeof mediaInfo.platform === 'string' ? mediaInfo.platform : 'unknown',
+        thumbnail: mediaInfo.thumbnail || null,
+        mode: mediaInfo.type || mode,
+        timestamp: Date.now(),
+        filename: completed.filename
       });
+      showAlert(`${completed.filename || mediaInfo.title} was saved to your Downloads folder.`, 'DOWNLOAD COMPLETE');
     } catch (error) {
       const message = error.name === 'AbortError'
         ? 'Download preparation took too long. Please retry.'
         : error.message || 'Could not prepare this download.';
       showAlert(message, 'DOWNLOAD ERROR');
     } finally {
-      clearTimeout(prepareTimeout);
+      activeJobRef.current = null;
+      setActiveJobId(null);
       clearInterval(interval);
-      if (downloadRequestRef.current === controller) downloadRequestRef.current = null;
       setTimeout(() => {
         setDownloading(false);
         setDownloadProgress(0);
       }, 450);
     }
+  };
+
+  const cancelDownload = async () => {
+    if (!activeJobRef.current) return;
+    try { await engineRef.current.cancelDownload(activeJobRef.current); } catch (_error) { }
   };
 
   return (
@@ -428,6 +475,8 @@ const SavewaveApp = () => {
         isOpen={modalConfig.isOpen}
         title={modalConfig.title}
         message={modalConfig.message}
+        primaryAction={modalConfig.primaryAction}
+        secondaryAction={modalConfig.secondaryAction}
         onClose={closeModal}
       />
 
@@ -458,7 +507,7 @@ const SavewaveApp = () => {
       </div>
 
       {/* HERO SECTION */}
-      <div className="relative z-10 max-w-6xl mx-auto px-4 sm:px-6 pt-9 md:pt-12 pb-10 md:pb-12 w-full grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-12 items-center">
+      <div className="app-hero relative z-10 max-w-6xl mx-auto px-4 sm:px-6 pt-9 md:pt-12 pb-10 md:pb-12 w-full grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-12 items-center">
 
         {/* Hero Left Content */}
         <div className="lg:col-span-6 flex flex-col justify-center">
@@ -467,12 +516,12 @@ const SavewaveApp = () => {
             <span className="opacity-90">No accounts. No storage.</span>
           </h1>
           <p className="text-base sm:text-lg md:text-xl font-normal text-black/90 max-w-xl leading-relaxed mb-7 md:mb-8">
-            Paste a supported media link. Savewave detects the source, resolves the best available media, and sends it to your browser. Nothing is stored.
+            Paste a public media link. Savewave resolves it locally and automatically saves the best available quality in the most suitable extension.
           </p>
 
           <div className="flex flex-wrap items-center gap-4">
             <RigButton variant="primary" className="text-sm py-4 px-8" onClick={() => navigateToTab('downloader')}>
-              OPEN SAVEWAVE
+              START DOWNLOADING
             </RigButton>
             <RigButton variant="outline" className="text-sm py-4 px-8 border-black/40 text-black hover:bg-black/10" onClick={() => navigateToTab('history')}>
               LOCAL HISTORY
@@ -505,9 +554,12 @@ const SavewaveApp = () => {
 
       {/* REFINED PRODUCT PROPERTIES TICKER BAR */}
       <div className="relative z-10 bg-black text-white py-3.5 border-y border-white/10 overflow-hidden font-mono text-xs tracking-widest uppercase my-4">
-        <div className="animate-marquee whitespace-nowrap flex gap-12">
-          <span>BEST AVAILABLE QUALITY</span> • <span>ZERO DATABASE</span> • <span>NO MEDIA STORAGE</span> • <span>LOCAL HISTORY</span> • <span>AUTOMATIC SOURCE DETECTION</span> • <span>DIRECT DOWNLOADS</span>
-          <span>BEST AVAILABLE QUALITY</span> • <span>ZERO DATABASE</span> • <span>NO MEDIA STORAGE</span> • <span>LOCAL HISTORY</span> • <span>AUTOMATIC SOURCE DETECTION</span> • <span>DIRECT DOWNLOADS</span>
+        <div className="landing-marquee-track" aria-label={TICKER_ITEMS.join(', ')}>
+          {[0, 1].map((copy) => (
+            <div className="landing-marquee-group" aria-hidden={copy === 1} key={copy}>
+              {TICKER_ITEMS.map((item) => <React.Fragment key={item}><span>{item}</span><b aria-hidden="true">•</b></React.Fragment>)}
+            </div>
+          ))}
         </div>
       </div>
 
@@ -527,6 +579,19 @@ const SavewaveApp = () => {
                 </span>
               </div>
 
+              <div className={`helper-status helper-${engineStatus.state}`} role="status" aria-live="polite">
+                <div>
+                  <span>{engineStatus.platform === 'web' ? 'WEB CAPABILITY' : 'LOCAL ENGINE'}</span>
+                  <strong>{engineStatus.state === 'ready' ? (engineStatus.platform === 'web' ? 'LIMITED' : 'CONNECTED') : engineStatus.state === 'checking' ? 'CHECKING' : 'UNAVAILABLE'}</strong>
+                </div>
+                {engineStatus.platform === 'web' && engineStatus.state === 'ready' && (
+                  <div className="helper-actions">
+                    <span>Direct media works here. Full source support is available in the Savewave app.</span>
+                    <a href={APP_INSTALL_URL} target="_blank" rel="noopener noreferrer">{/Android/i.test(navigator.userAgent) ? 'GET SAVEWAVE FOR ANDROID' : 'DOWNLOAD SAVEWAVE'}</a>
+                  </div>
+                )}
+              </div>
+
               {/* INPUT FORM */}
               <form onSubmit={handleResolve}>
                 <div className="flex flex-col md:flex-row gap-3">
@@ -540,7 +605,7 @@ const SavewaveApp = () => {
                       aria-label="Media URL"
                       autoComplete="url"
                       inputMode="url"
-                      className="w-full bg-[#0d0d0e] border border-white/20 text-white placeholder-zinc-500 font-mono text-sm p-4 md:pr-64 outline-none focus:border-[#e03d27] transition-all"
+                      className="media-url-input w-full bg-[#0d0d0e] border border-white/20 text-white placeholder-zinc-500 font-mono text-sm p-4 md:pr-64 outline-none focus:border-[#e03d27]"
                     />
 
                     {/* Input Actions */}
@@ -564,7 +629,7 @@ const SavewaveApp = () => {
                     </div>
                   </div>
 
-                  <RigButton variant="red" type="submit" disabled={loading} className="py-4 px-8 shrink-0">
+                  <RigButton variant="red" type="submit" disabled={loading || engineStatus.state !== 'ready'} className="py-4 px-8 shrink-0">
                     {loading ? <div className="rig-spinner"></div> : 'RESOLVE'}
                   </RigButton>
                 </div>
@@ -605,34 +670,37 @@ const SavewaveApp = () => {
               {mediaInfo && (
                 <div className="mt-8 pt-8 border-t border-white/10 state-reveal-transition" aria-live="polite">
                   <div className="font-mono text-[10px] tracking-widest text-emerald-400 mb-3">READY TO SAVE</div>
-                  <div className="bg-[#0d0d0e] border border-white/10 p-6 flex flex-col md:flex-row gap-6 items-center justify-between card-hover-lift">
-                    <div className="flex items-center gap-5 min-w-0 flex-1">
+                  <div className="media-preview-card bg-[#0d0d0e] border border-white/10 p-6 flex flex-col md:flex-row gap-6 items-center justify-between card-hover-lift">
+                    <div className="media-preview-main flex items-center gap-5 min-w-0 flex-1">
                       {mediaInfo.thumbnail ? (
-                        <img src={mediaInfo.thumbnail} className="w-20 h-20 object-cover border border-white/15 squircle-logo shrink-0" alt="Media artwork" width="80" height="80" loading="lazy" decoding="async" />
+                        <img src={mediaInfo.thumbnail} className="media-preview-art w-20 h-20 object-cover border border-white/15 squircle-logo shrink-0" alt="Media artwork" width="80" height="80" loading="lazy" decoding="async" />
                       ) : (
-                        <div className="w-20 h-20 bg-zinc-800 border border-white/15 squircle-logo flex items-center justify-center text-zinc-400 font-mono text-[10px] shrink-0 font-bold uppercase">
+                        <div className="media-preview-art w-20 h-20 bg-zinc-800 border border-white/15 squircle-logo flex items-center justify-center text-zinc-400 font-mono text-[10px] shrink-0 font-bold uppercase">
                           MEDIA
                         </div>
                       )}
 
-                      <div className="min-w-0 flex-1">
-                        <h3 className="text-base font-bold text-white mb-1 truncate">{mediaInfo.title}</h3>
-                        <p className="text-xs font-mono text-zinc-400 mb-2 truncate">{mediaInfo.creator || mediaInfo.uploader || 'Savewave Engine'}</p>
+                      <div className="media-preview-copy min-w-0 flex-1">
+                        <h3 className="media-preview-title text-base font-bold text-white mb-1">{mediaInfo.title}</h3>
+                        <p className="media-preview-creator text-xs font-mono text-zinc-400 mb-2">{mediaInfo.creator || mediaInfo.uploader || 'Savewave Engine'}</p>
 
-                        <div className="flex flex-wrap items-center gap-x-2 gap-y-1 font-mono text-[11px] text-[#e03d27]">
-                          <span>{typeof mediaInfo.platform === 'string' ? mediaInfo.platform.toUpperCase() : (mediaInfo.platform && mediaInfo.platform.name) || 'WEB MEDIA'}</span> • <span>{mode.toUpperCase()}</span> • <span>{mediaInfo.qualityLabel || 'BEST AVAILABLE QUALITY'}</span>
+                        <div className="media-preview-meta flex flex-wrap items-center gap-x-2 gap-y-1 font-mono text-[11px] text-[#e03d27]">
+                          <span>{typeof mediaInfo.platform === 'string' ? mediaInfo.platform.toUpperCase() : (mediaInfo.platform && mediaInfo.platform.name) || 'WEB MEDIA'}</span> • <span>{(mediaInfo.type || mode).toUpperCase()}</span> • <span>{mediaInfo.qualityLabel || 'BEST AVAILABLE QUALITY'}</span>
                         </div>
                       </div>
                     </div>
 
-                    <div className="w-full md:w-auto shrink-0">
-                      <RigButton variant="red" disabled={downloading} className="w-full md:w-auto py-4 px-8 text-xs" onClick={triggerBrowserDownload}>
+                    <div className="media-preview-action w-full md:w-auto shrink-0">
+                      <RigButton variant="red" disabled={downloading} className="w-full md:w-auto py-4 px-8 text-xs" onClick={startNativeDownload}>
                         {downloading ? 'PREPARING' : 'SAVE'}
                       </RigButton>
                       {downloading && (
-                        <div className="slim-progress mt-2" role="progressbar" aria-label="Preparing download" aria-valuemin="0" aria-valuemax="100" aria-valuenow={Math.round(downloadProgress)}>
-                          <span style={{ width: `${downloadProgress}%` }}></span>
-                        </div>
+                        <>
+                          <div className="slim-progress mt-2" role="progressbar" aria-label="Downloading media" aria-valuemin="0" aria-valuemax="100" aria-valuenow={Math.round(downloadProgress)}>
+                            <span style={{ width: `${downloadProgress}%` }}></span>
+                          </div>
+                          {activeJobId && <button type="button" className="download-cancel" onClick={cancelDownload}>CANCEL</button>}
+                        </>
                       )}
                     </div>
                   </div>
@@ -641,13 +709,13 @@ const SavewaveApp = () => {
             </RigCard>
           )}
 
-          {/* TAB 2: LOCAL BROWSER HISTORY */}
+          {/* TAB 2: ON-DEVICE DOWNLOAD HISTORY */}
           {activeTab === 'history' && (
             <RigCard>
               <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4 mb-6">
                 <div>
-                  <h2 className="font-mono text-xs uppercase tracking-widest text-zinc-400 font-semibold">LOCAL BROWSER HISTORY</h2>
-                  <small className="text-[11px] text-zinc-500 font-mono">Stored only on this device • Never synced</small>
+                  <h2 className="font-mono text-xs uppercase tracking-widest text-zinc-400 font-semibold">ON-DEVICE DOWNLOAD HISTORY</h2>
+                  <small className="text-[11px] text-zinc-500 font-mono">Stored locally by this app • Never synced</small>
                 </div>
                 {clientHistory.length > 0 && (
                   <RigButton variant="outline" className="py-2 px-4 text-[10px]" onClick={clearLocalHistory}>CLEAR HISTORY</RigButton>
@@ -662,7 +730,7 @@ const SavewaveApp = () => {
                     <div key={item.id || `${item.timestamp}-${i}`} className="bg-[#0d0d0e] border border-white/10 p-4 flex flex-col sm:flex-row sm:justify-between sm:items-center gap-2 card-hover-lift">
                       <div className="min-w-0 flex-1 pr-4">
                         <h4 className="text-xs font-medium text-white truncate">{item.title}</h4>
-                        <span className="font-mono text-[11px] text-zinc-500">{item.uploader || 'Unknown source'} • {(item.mode || 'media').toUpperCase()} • {item.timestamp || 'Unknown time'}</span>
+                        <span className="font-mono text-[11px] text-zinc-500">{item.uploader || item.platform || 'Unknown source'} • {(item.mode || item.mediaType || 'media').toUpperCase()} • {item.timestamp ? new Date(item.timestamp).toLocaleString() : 'Unknown time'}</span>
                       </div>
                       <span className="font-mono text-[10px] text-emerald-400 shrink-0">SAVED</span>
                     </div>
@@ -682,30 +750,35 @@ const SavewaveApp = () => {
             <RigCard>
               <h2 className="font-mono text-xs uppercase tracking-widest text-zinc-400 font-semibold mb-6">PRIVACY ARCHITECTURE</h2>
 
-              <div className="flex flex-col gap-6 font-mono text-xs">
-                <div>
+              <div className="privacy-grid font-mono text-xs">
+                <div className="privacy-card">
                   <h3 className="text-sm font-bold text-white mb-1">No Database</h3>
                   <p className="text-zinc-400">No accounts or persistent server-side download history.</p>
                 </div>
 
-                <div>
-                  <h3 className="text-sm font-bold text-white mb-1">Stateless Resolution</h3>
-                  <p className="text-zinc-400">Links are processed only to resolve available media.</p>
+                <div className="privacy-card">
+                  <h3 className="text-sm font-bold text-white mb-1">Local Processing</h3>
+                  <p className="text-zinc-400">Media extraction runs locally through Savewave's native on-device engine.</p>
                 </div>
 
-                <div>
-                  <h3 className="text-sm font-bold text-white mb-1">No Permanent Media Storage</h3>
-                  <p className="text-zinc-400">Savewave does not permanently store downloaded media on its servers.</p>
+                <div className="privacy-card">
+                  <h3 className="text-sm font-bold text-white mb-1">No Media Upload</h3>
+                  <p className="text-zinc-400">Media is not uploaded to Savewave servers for processing.</p>
                 </div>
 
-                <div>
-                  <h3 className="text-sm font-bold text-white mb-1">Local History</h3>
-                  <p className="text-zinc-400">Download history stays on this device and can be cleared anytime.</p>
+                <div className="privacy-card">
+                  <h3 className="text-sm font-bold text-white mb-1">On-Device History</h3>
+                  <p className="text-zinc-400">Bounded download history stays inside this app and can be cleared anytime.</p>
                 </div>
 
-                <div>
-                  <h3 className="text-sm font-bold text-white mb-1">Direct Downloads</h3>
-                  <p className="text-zinc-400">Media is downloaded directly from the resolved source when supported.</p>
+                <div className="privacy-card">
+                  <h3 className="text-sm font-bold text-white mb-1">Public Media Only</h3>
+                  <p className="text-zinc-400">Private, login-gated, cookie-only, paid, and DRM-protected media is rejected.</p>
+                </div>
+
+                <div className="privacy-card">
+                  <h3 className="text-sm font-bold text-white mb-1">Source Connections</h3>
+                  <p className="text-zinc-400">Source platforms still receive your device's network requests; Savewave does not claim anonymity.</p>
                 </div>
               </div>
             </RigCard>
@@ -719,7 +792,7 @@ const SavewaveApp = () => {
         <div className="max-w-6xl mx-auto flex flex-col md:flex-row justify-between items-center gap-6 font-mono text-xs text-zinc-400">
 
           <div className="flex items-center gap-3">
-            <img src="savewave-light.png" className="w-6 h-6 squircle-logo" alt="Savewave Logo" />
+            <img src="savewave-dark.png" className="w-6 h-6 squircle-logo" alt="Savewave Logo" />
             <span className="font-bold text-white tracking-widest text-sm">SAVEWAVE</span>
           </div>
 
@@ -730,12 +803,12 @@ const SavewaveApp = () => {
           </div>
 
           <div className="flex items-center gap-5 text-[11px]">
-            <a href="https://github.com/kuberbassi/savewave" target="_blank" rel="noopener noreferrer" title="GitHub Repository" className="hover:opacity-80 transition-opacity">
+            <button type="button" onClick={() => window.SavewaveCore.openExternal('https://github.com/kuberbassi/savewave')} title="GitHub Repository" className="hover:opacity-80 transition-opacity">
               <PlatformIcon name="GITHUB" className="w-4 h-4" />
-            </a>
-            <a href="https://kuberbassi.com" target="_blank" rel="noopener noreferrer" title="Kuber Bassi Website" className="hover:opacity-80 transition-opacity flex items-center">
+            </button>
+            <button type="button" onClick={() => window.SavewaveCore.openExternal('https://kuberbassi.com')} title="Kuber Bassi Website" className="hover:opacity-80 transition-opacity flex items-center">
               <img src="https://www.google.com/s2/favicons?domain=kuberbassi.com&sz=64" className="w-4 h-4 rounded-full" alt="kuberbassi.com favicon" />
-            </a>
+            </button>
             <div className="flex items-center gap-2">
               <span className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse"></span>
               <span>© {(() => {
@@ -756,3 +829,4 @@ const SavewaveApp = () => {
 // Render React App
 const root = ReactDOM.createRoot(document.getElementById('root'));
 root.render(<SavewaveApp />);
+requestAnimationFrame(() => document.documentElement.classList.add('app-mounted'));

@@ -1,19 +1,21 @@
-const ytdlp = require('yt-dlp-exec');
+const { ytdlp } = require('../utils/ytDlpRuntime');
 const { createNormalizedResponse } = require('../types/normalized');
 const { sanitizeFilename } = require('../utils/sanitizer');
 const { scoreCandidate } = require('./scoreCandidate');
 const { getSpotifyMetadata } = require('./spotifyMetadata');
-const { normalizeTitle, normalizeArtist } = require('./normalizers');
+const { normalizeTitle, normalizeArtist, stripFeaturedArtists, extractVersionMarkers } = require('./normalizers');
 
 const SEARCH_OPTIONS = Object.freeze({
   dumpSingleJson: true,
   noWarnings: true,
-  playlistEnd: 12,
+  playlistEnd: 15,
   flatPlaylist: true,
   ignoreErrors: true,
   skipDownload: true,
   socketTimeout: 12,
-  retries: 2
+  retries: 2,
+  jsRuntimes: 'node',
+  remoteComponents: 'ejs:github'
 });
 
 async function searchCandidates(queries) {
@@ -25,7 +27,7 @@ async function searchCandidates(queries) {
       const result = await ytdlp(query, SEARCH_OPTIONS);
       return result && result.entries ? result.entries : result && result.title ? [result] : [];
     } catch (error) {
-      if (process.env.NODE_ENV === 'development') {
+      if (process.env.VERCEL || process.env.NODE_ENV === 'development') {
         const summary = String(error.message || 'search failed').split(/\r?\n/, 1)[0];
         console.warn(`[Spotify search] ${summary}`);
       }
@@ -54,21 +56,33 @@ function candidateUrl(candidate) {
 
 function sameRecordingIdentity(first, second, metadata) {
   if (!first || !second) return false;
-  const targetArtist = normalizeArtist(metadata.primaryArtist || metadata.artist);
-  const firstText = normalizeArtist(`${first.candidate.artist || first.candidate.uploader || first.candidate.channel || ''} ${first.candidate.title || ''}`);
-  const secondText = normalizeArtist(`${second.candidate.artist || second.candidate.uploader || second.candidate.channel || ''} ${second.candidate.title || ''}`);
-  return normalizeTitle(first.candidate.title).includes(normalizeTitle(metadata.title)) &&
-    normalizeTitle(second.candidate.title).includes(normalizeTitle(metadata.title)) &&
-    firstText.includes(targetArtist) && secondText.includes(targetArtist);
+  const targetTitle = normalizeTitle(stripFeaturedArtists(metadata.title));
+  const targetVersions = extractVersionMarkers(metadata.title).sort().join('|');
+  const creditedArtists = (metadata.artists || [metadata.primaryArtist || metadata.artist])
+    .map(normalizeArtist)
+    .filter(Boolean);
+
+  const matchesIdentity = ({ candidate }) => {
+    const title = normalizeTitle(stripFeaturedArtists(candidate.title));
+    const text = normalizeArtist(`${candidate.artist || candidate.uploader || candidate.channel || ''} ${candidate.title || ''}`);
+    const titleMatches = title === targetTitle || title.includes(targetTitle) || targetTitle.includes(title);
+    const artistMatches = creditedArtists.some((artist) => text.includes(artist));
+    const versionsMatch = extractVersionMarkers(candidate.title).sort().join('|') === targetVersions;
+    const durationMatches = !metadata.duration || !candidate.duration || Math.abs(metadata.duration - candidate.duration) <= 7;
+    return titleMatches && artistMatches && versionsMatch && durationMatches;
+  };
+
+  return matchesIdentity(first) && matchesIdentity(second);
 }
 
 async function resolveSpotifySmartMatch(url) {
   try {
     const metadata = await getSpotifyMetadata(url);
     const candidates = await searchCandidates([
-      `ytsearch12:${metadata.primaryArtist} ${metadata.title} official audio`,
-      `ytsearch12:${metadata.primaryArtist} ${metadata.title} topic`,
-      `ytsearch12:${metadata.title} ${metadata.artist}`
+      `ytsearch15:${metadata.primaryArtist} ${metadata.title} official audio`,
+      `ytsearch15:${metadata.primaryArtist} ${metadata.title} topic`,
+      `ytsearch15:${metadata.title} ${metadata.artist}`,
+      `ytsearch15:${metadata.primaryArtist} - ${metadata.title}`
     ]);
     if (!candidates.length) throw new Error('No audio candidates were available for this track.');
 

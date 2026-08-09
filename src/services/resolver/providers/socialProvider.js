@@ -1,4 +1,4 @@
-const ytdlp = require('yt-dlp-exec');
+const { ytdlp } = require('../utils/ytDlpRuntime');
 const { createNormalizedResponse } = require('../types/normalized');
 const { sanitizeFilename } = require('../utils/sanitizer');
 const { extractionOptions, normalizeExtractedMedia, providerError } = require('../utils/providerMedia');

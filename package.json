@@ -1,21 +1,34 @@
 {
   "name": "savewave",
-  "version": "1.0.0",
+  "version": "1.0.3",
   "description": "Privacy-focused resolver and downloader for supported public video, audio, and image links.",
   "main": "server.js",
   "engines": {
-    "node": ">=20"
+    "node": "22.x"
   },
   "scripts": {
     "start": "node server.js",
     "dev": "node server.js",
     "build:css": "npx @tailwindcss/cli -i ./public/style.css -o ./public/dist.css --minify",
-    "build:js": "babel public/app.jsx --out-file public/app.js",
-    "build": "npm run build:css && npm run build:js",
-    "test": "vitest run --globals"
+    "build:core": "node scripts/build-core.js",
+    "build:js": "babel public/app.jsx --out-file public/app.js && babel public/landing.jsx --out-file public/landing.js",
+    "build:vendor": "node scripts/copy-vendor.js",
+    "build": "npm run build:vendor && npm run build:css && npm run build:core && npm run build:js",
+    "test": "vitest run --globals",
+    "typecheck": "tsc --noEmit",
+    "lint": "npm run typecheck",
+    "check": "npm run typecheck && npm test && npm run build",
+    "prepare:sidecars": "node scripts/prepare-sidecars.js",
+    "tauri": "tauri",
+    "tauri:dev": "npm run prepare:sidecars && tauri dev",
+    "tauri:build": "npm run prepare:sidecars && tauri build",
+    "test:spotify-playlist": "node scripts/benchmark-spotify-playlist.js"
   },
   "dependencies": {
+    "@tauri-apps/plugin-opener": "^2.5.0",
     "express": "^4.19.2",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
     "undici": "^6.28.0",
     "yt-dlp-exec": "^1.0.2"
   },
@@ -25,8 +38,13 @@
     "@babel/core": "^8.0.1",
     "@babel/preset-react": "^8.0.1",
     "@tailwindcss/cli": "^4.3.3",
+    "@tauri-apps/api": "^2.8.0",
+    "@tauri-apps/cli": "^2.8.0",
+    "esbuild": "^0.28.0",
+    "ffmpeg-static": "^5.2.0",
     "supertest": "^7.2.2",
     "tailwindcss": "^4.3.3",
+    "typescript": "^5.9.0",
     "vitest": "^4.1.10"
   }
 }

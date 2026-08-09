@@ -1,0 +1,14 @@
+[[permission]]
+identifier = "desktop-commands"
+description = "Allows the Savewave desktop interface to use its local media engine."
+commands.allow = [
+  "get_capabilities",
+  "get_engine_status",
+  "get_release_info",
+  "get_spotify_metadata",
+  "search_spotify_candidates",
+  "resolve_media",
+  "download_media",
+  "get_download_progress",
+  "cancel_download"
+]

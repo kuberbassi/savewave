@@ -8,7 +8,7 @@
 
 ## Reporting a Vulnerability
 
-If you discover a security vulnerability or SSRF bypass within Savewave, please report it responsibly:
+If you discover a security vulnerability, unsafe target URL, sidecar argument issue, path traversal, or permission bypass within Savewave, please report it responsibly:
 
 1. Do **not** open a public GitHub issue for security vulnerabilities.
 2. Contact the maintainer directly via **[kuberbassi.com](https://kuberbassi.com)**.

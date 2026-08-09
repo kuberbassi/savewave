@@ -1,125 +1,124 @@
 <div align="center">
-  <img src="public/pwa-icon-dark.png" width="156" alt="Savewave dark squircle logo">
+  <img src="public/pwa-icon-dark.png" width="128" alt="Savewave icon">
 
-  <h1>Savewave</h1>
+  # Savewave
 
-  <p><strong>Private by design · No accounts · No database · Public media resolver and downloader</strong></p>
-  <p><em>Designed &amp; Developed by <a href="https://kuberbassi.com">Kuber Bassi</a></em></p>
+  **Paste -> Resolve -> Preview -> Save**
 
-  <p><a href="https://savewave.kuberbassi.com/"><strong>⚡ Open Live Web Application »</strong></a></p>
+  A simple, privacy-first media saver with a lightweight download website and on-device native engines.
 
-  <p>
-    <img src="https://img.shields.io/badge/React-18-61DAFB?style=flat-square&amp;logo=react&amp;logoColor=black" alt="React 18">
-    <img src="https://img.shields.io/badge/Express-4-000000?style=flat-square&amp;logo=express&amp;logoColor=white" alt="Express 4">
-    <img src="https://img.shields.io/badge/Node.js-20%2B-5FA04E?style=flat-square&amp;logo=nodedotjs&amp;logoColor=white" alt="Node.js 20 or newer">
-    <img src="https://img.shields.io/badge/yt--dlp-Media_Engine-FF0000?style=flat-square&amp;logo=youtube&amp;logoColor=white" alt="yt-dlp media engine">
-    <img src="https://img.shields.io/badge/Tests-82_passing-20C997?style=flat-square&amp;logo=vitest&amp;logoColor=white" alt="82 tests passing">
-    <img src="https://img.shields.io/badge/License-MIT-97CA00?style=flat-square" alt="MIT License">
-  </p>
+  [Open web app](https://savewave.vercel.app) · [Security](SECURITY.md) · [Contributing](CONTRIBUTING.md) · [MIT license](LICENSE)
+
+  ![Tauri 2](https://img.shields.io/badge/Tauri-2-24C8DB?style=flat-square&logo=tauri&logoColor=white)
+  ![TypeScript](https://img.shields.io/badge/TypeScript-5-3178C6?style=flat-square&logo=typescript&logoColor=white)
+  ![Rust](https://img.shields.io/badge/Rust-native_engine-000000?style=flat-square&logo=rust&logoColor=white)
+  ![yt-dlp](https://img.shields.io/badge/yt--dlp-local-FF0000?style=flat-square)
+  ![License](https://img.shields.io/badge/license-MIT-green?style=flat-square)
 </div>
 
 ---
 
-Savewave is a privacy-focused public-media resolver and downloader built with React, Express, `yt-dlp`, and Vitest. It follows one focused flow: **Paste → Resolve → Preview → Save**.
+## What Savewave is
 
-## Tech architecture
+Savewave keeps one predictable flow and automatically selects the best available source quality. It supports public, non-DRM media only. Private, login-gated, cookie-only, paid, and DRM-protected content is rejected; Savewave does not try to bypass access controls.
 
-| Technology | Role in Savewave |
-| :--- | :--- |
-| React 18 | Component-based frontend, responsive tabs, media previews, progress states, local history, and the complete paste-to-save user flow. |
-| JavaScript + Babel | JSX application source and production browser compilation without introducing a larger frontend framework. |
-| Tailwind CSS + modular CSS | Utility generation, design tokens, reusable component styles, responsive layouts, themes, motion, and accessibility states. |
-| Node.js 20+ | Server runtime for link validation, source detection, media resolution, streaming, and download preparation. |
-| Express 4 | Lightweight HTTP server, JSON API endpoints, static frontend delivery, request limits, security headers, and download routes. |
-| yt-dlp | Public-media extraction and format discovery for supported video, audio, and social platforms. |
-| Spotify Smart Match | Deterministic title, artist, duration, version, source-authenticity, and ambiguity scoring against public audio candidates. |
-| Undici | Restricted outbound HTTP requests with connection controls and SSRF-safe URL validation. |
-| Browser localStorage | Device-only, bounded download history with no account, database, or cloud synchronization. |
-| Vitest + Supertest | Unit and integration coverage for resolvers, security rules, API behavior, SEO files, and provider reliability. |
-| Vercel | Production hosting, Express routing, static asset delivery, and deployment configuration. |
+The website is intentionally an installation landing page only. It does not contain the resolver or downloader. The unchanged Paste -> Resolve -> Preview -> Save workflow runs inside the installed application, with no cloud extraction server or media upload.
+
+## Platform capabilities
+
+| Capability | Web | Desktop (Tauri) | Android |
+| --- | --- | --- | --- |
+| Installation/download page | Yes | N/A | N/A |
+| Direct media URLs | No | Yes | Native local engine on Android 10+ |
+| Public YouTube/social/SoundCloud extraction | No | Local `yt-dlp` | Native local engine; final physical-device matrix pending |
+| Spotify Smart Match | No | Public metadata + shared strict scorer + local matched-source extraction | Public metadata + conservative on-device multi-query matching |
+| Downloads | Not available | OS Downloads folder | MediaStore Downloads |
+| Cookies/private media | No | No | No |
+| Cloud extraction/upload | No | No | No |
+
+Android source, the Tauri project, and the native media-plugin bridge are included, and an arm64 debug APK builds successfully with JDK 21, Android SDK 36, and NDK r28c. A signed Android release still requires a release keystore plus real-device resolve, download, cancellation, MediaStore, upgrade, and uninstall validation. There is no iOS target. Until that validation is complete, the Android download button must not advertise a nonexistent public release.
+
+## Architecture
+
+Detailed references: [Architecture](docs/ARCHITECTURE.md) · [Media engine rules](docs/MEDIA_ENGINE.md) · [Release guide](docs/RELEASING.md)
 
 ```text
-React interface
-    → Express API
-        → URL validation and platform detection
-            → Platform resolver / Spotify Smart Match
-                → Verified public media source
-                    → Preview → Save
+shared responsive UI
+        |
+shared TypeScript media core
+  detection · capabilities · errors · naming · quality · history
+        |
+  +-----+------------------+
+  |                        |
+web adapter          native adapters
+direct URLs          Tauri commands / Android plugin
+                           |
+                    local yt-dlp + FFmpeg
 ```
 
-Savewave intentionally uses React with a small Express backend; it is **not a Next.js application**. This keeps the architecture direct, understandable, and easy to maintain.
+| Technology | Responsibility |
+| --- | --- |
+| React | Focused Paste -> Preview -> Save interface and responsive state rendering. |
+| TypeScript | Shared media contracts, source detection, capability gates, errors, filenames, quality policy, Spotify scoring, and IndexedDB history. |
+| Tauri 2 | Small desktop shell, command boundary, bundling, capabilities, and release-notification integration. |
+| Rust | URL validation, sidecar argument construction, process lifecycle, progress, cancellation, cleanup, and safe saving. |
+| yt-dlp | Local public-media metadata and extraction. |
+| FFmpeg | Local format merge/post-processing used by the extraction engine. |
+| Kotlin / youtubedl-android | Asynchronous startup, Spotify matching, ordered Instagram galleries, bounded extraction, cancellation, cleanup, and scoped MediaStore saving without broad storage permission. |
+| Express | Static web hosting and explicit `410` responses for retired cloud extraction routes. |
+| IndexedDB | Bounded on-device application history inside the native WebView. |
+| Vitest + Cargo test | Shared-core, web, resolver utility, security, argument, and cancellation tests. |
 
-## What it supports
+## Development
 
-| Platform | Supported public media |
-| :--- | :--- |
-| YouTube | Videos, Shorts, and audio |
-| Instagram | Reels, posts, photos, videos, and carousels |
-| Facebook | Videos, Reels, and post media |
-| Threads | Post videos and images |
-| X / Twitter | Videos and images |
-| SoundCloud | Audio streams |
-| Spotify | Metadata plus strict audio-source matching |
-| Direct URLs | Common video, audio, and image formats |
-
-Private, login-gated, and Story media is intentionally rejected. Savewave does not accept cookies or browser sessions. Platform support can change when a source changes its public delivery system.
-
-## Privacy model
-
-- No account or application database.
-- No permanent server-side media storage.
-- Bounded download history stored locally in the browser's local storage.
-- Final download targets are validated before the browser opens them.
-
-## Spotify matching
-
-Savewave does not download audio from Spotify. It reads the public Spotify embed metadata—including canonical artists, precise duration, release information, availability, and artwork—then searches public audio sources in parallel. Candidates are ranked using title coverage, every credited artist, duration, version markers, channel authenticity, explicit/clean compatibility, and ambiguity checks. A result is returned only above a strict confidence threshold. No Spotify API key or Premium account is required.
-
-## Local development
-
-Requirements: Node.js 20 or newer, npm, and a working `yt-dlp` runtime.
+Requirements: Node.js 22+, npm, and Rust stable. Native release builds also require the platform's Tauri prerequisites.
 
 ```bash
 npm install
-npm run build
+npm run lint
 npm test
-npm start
+npm run build
 ```
 
-Open `http://localhost:3000`.
+Desktop development:
 
-## Project structure
-
-```text
-public/
-  app.jsx          React interface source
-  app.js           compiled browser bundle
-  style.css        components, motion, and responsive rules
-  theme.css        design tokens and theme foundations
-src/services/
-  resolver/        source detection, providers, validation, and normalization
-tests/
-  integration/     API behavior
-  unit/            resolver, security, SEO, and provider behavior
-server.js           Express application and download endpoints
+```bash
+npm run prepare:sidecars
+npm run tauri:dev
 ```
 
-`public/app.js` and `public/dist.css` are deployable build artifacts and should be regenerated after changing their source files.
+`prepare:sidecars` creates architecture-suffixed local `yt-dlp` and FFmpeg binaries under `src-tauri/binaries/`. Those generated executables are ignored by Git. Release installers bundle them as private application dependencies; end users install only one setup file.
 
-## Commands
+Rust checks:
 
-- `npm start` - start the Express application.
-- `npm run build` - rebuild production CSS and JavaScript.
-- `npm test` - run the complete Vitest suite.
+```bash
+cd src-tauri
+cargo test
+```
 
-## Responsible use
+## Release checklist
 
-Only download media you are authorized to save. You are responsible for following source terms and applicable law.
+1. Run the JavaScript/TypeScript and Rust checks above.
+2. Build and smoke-test each desktop target on its native operating system.
+3. Publish the installer and release notes on GitHub.
+4. Update `public/client-version.json` only after the matching installer is publicly available.
+5. Initialize and register the Android plugin, then test install, resolve, cancel, save, and upgrade flows on physical devices.
 
-## Security and contributing
+The Windows and Android apps perform a notification-only version check at launch. A newer version opens no executable automatically: the user explicitly chooses whether to open the installer or changelog. This avoids presenting an unsigned or placeholder automatic updater as secure. Fully automatic installation should only be added after code signing and Tauri updater signing keys are available.
 
-See [SECURITY.md](SECURITY.md) for private vulnerability reporting and [CONTRIBUTING.md](CONTRIBUTING.md) for development guidelines.
+Do not advertise Android as production-ready until its pending integration/device checks pass. Spotify uses public Spotify metadata and rejects low-confidence external matches; correctness still depends on the public metadata Spotify exposes and the candidates available to yt-dlp.
+
+## Privacy and security
+
+- Media processing runs on the user's device in native builds.
+- The web deployment has no extraction endpoint and does not proxy media.
+- Inputs are restricted to public HTTP(S) URLs; private-network targets are rejected by native validation.
+- Sidecars receive structured arguments rather than shell command strings.
+- Every native job has isolated temporary storage and a process-scoped cancel handle.
+- History stays inside the installed application on that device and is bounded to avoid unbounded growth.
+
+Only download media you own or have permission to save. Platform terms and local law still apply.
 
 ## License
 
-[MIT License](LICENSE) (c) 2026 Savewave / [Kuber Bassi](https://kuberbassi.com)
+[MIT](LICENSE) © Kuber Bassi.

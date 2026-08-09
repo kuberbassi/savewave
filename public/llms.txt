@@ -1,23 +1,19 @@
 # Savewave
 
-> Savewave is a privacy-focused resolver and downloader for supported public media links, created by Kuber Bassi.
+> Savewave is a privacy-focused public-media saver with a lightweight installation website and on-device native extraction.
 
 ## Product
 
-- Workflow: Paste -> Resolve -> Preview -> Save
-- Supports public media from YouTube, Instagram, Facebook, Threads, X/Twitter, SoundCloud, and direct media URLs.
-- Spotify links use public metadata to find a high-confidence matching audio source; Savewave does not download audio from Spotify.
-- Private, login-gated, and Story media is rejected. Cookies and browser sessions are not accepted.
-- No accounts, database, or permanent server-side media storage.
-- Download history is bounded and stored only in the user's browser.
+- Workflow: Paste -> Resolve -> Preview -> Save.
+- The website is an app-download landing page; it contains no browser downloader and does not run or proxy yt-dlp.
+- Desktop extraction uses bundled yt-dlp and FFmpeg locally through Tauri.
+- Private, login-gated, cookie-only, paid and DRM-protected content is unsupported.
+- No accounts, media upload, cloud extraction, cookies, or browser sessions.
+- Download history is bounded and stored only inside the installed application on that device.
 
 ## Links
 
 - Website: https://savewave.kuberbassi.com/
 - Source: https://github.com/kuberbassi/savewave
-- Creator: https://kuberbassi.com/
-
-## Documentation
-
-- Full product notes: https://savewave.kuberbassi.com/llms-full.txt
-- README: https://github.com/kuberbassi/savewave#readme
+- Windows releases: https://github.com/kuberbassi/savewave/releases
+- Creator: Kuber Bassi — https://kuberbassi.com/

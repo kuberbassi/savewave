@@ -13,6 +13,10 @@ temp/
 tmp/
 *.log
 *.pid
+*.jks
+*.keystore
+keystore.properties
+signing.properties
 
 # OS Files
 .DS_Store
@@ -37,3 +41,7 @@ playwright-report/
 test-results/
 *.tsbuildinfo
 *.tgz
+
+src-tauri/binaries/yt-dlp-*
+src-tauri/binaries/ffmpeg-*
+src-tauri/target/

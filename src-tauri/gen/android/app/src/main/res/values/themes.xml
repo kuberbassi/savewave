@@ -1,0 +1,11 @@
+<resources xmlns:tools="http://schemas.android.com/tools">
+    <!-- Base application theme. -->
+    <style name="Theme.savewave" parent="Theme.MaterialComponents.DayNight.NoActionBar">
+        <item name="android:windowBackground">@color/savewave_chrome</item>
+        <item name="android:colorAccent">#E03D27</item>
+        <item name="android:statusBarColor">@color/savewave_chrome</item>
+        <item name="android:navigationBarColor">@color/savewave_chrome</item>
+        <item name="android:windowLightStatusBar">false</item>
+        <item name="android:windowLightNavigationBar">false</item>
+    </style>
+</resources>

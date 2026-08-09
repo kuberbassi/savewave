@@ -2,52 +2,37 @@
  * YouTube Resolver Provider Adapter
  */
 
-const ytdlp = require('yt-dlp-exec');
+const { ytdlp } = require('../utils/ytDlpRuntime');
 const { createNormalizedResponse } = require('../types/normalized');
 const { sanitizeFilename } = require('../utils/sanitizer');
 const { selectAutomaticQuality } = require('../quality/autoQuality');
+const { extractionOptions } = require('../utils/providerMedia');
 
 async function resolveYouTube(url, mode = 'video') {
   let info = null;
 
-  // Try yt-dlp binary first (Works on Node.js servers, local dev, Docker)
   try {
     info = await ytdlp(url, {
-      dumpSingleJson: true,
-      noWarnings: true,
-      noCheckCertificate: true,
+      ...extractionOptions(),
+      noPlaylist: true,
       preferFreeFormats: true
     });
   } catch (err) {
-    // Fallback: If running on serverless Vercel without Python 3 / yt-dlp binary
-    try {
-      const oembedRes = await fetch(`https://www.youtube.com/oembed?url=${encodeURIComponent(url)}&format=json`);
-      if (oembedRes.ok) {
-        const oembed = await oembedRes.json();
-        const videoIdMatch = url.match(/(?:youtu\.be\/|youtube\.com\/(?:embed\/|v\/|watch\?v=|shorts\/)|youtu\.be\/)([^#\&\?]{11})/);
-        const videoId = videoIdMatch ? videoIdMatch[1] : null;
-        const title = oembed.title || 'YouTube Video';
-        const filename = sanitizeFilename(title, mode === 'audio' ? 'mp3' : 'mp4');
-
-        return createNormalizedResponse({
-          success: true,
-          platform: 'youtube',
-          type: mode === 'audio' ? 'audio' : 'video',
-          title,
-          creator: oembed.author_name || 'YouTube',
-          thumbnail: oembed.thumbnail_url || (videoId ? `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg` : null),
-          duration: null,
-          filename,
-          qualityLabel: 'Best available quality',
-          download: {
-            directUrl: videoId ? `https://y2mate.is/watch?v=${videoId}` : url,
-            mode: mode === 'audio' ? 'mp3' : 'mp4'
-          }
-        });
-      }
-    } catch (fallbackErr) {}
-
-    throw new Error('Serverless Python runtime required for full YouTube extraction. Try on local server or non-serverless host.');
+    const detail = String(err && (err.stderr || err.message) || '');
+    if (process.env.VERCEL || process.env.NODE_ENV === 'development') {
+      const summary = detail.split(/\r?\n/).filter(Boolean).slice(-3).join(' | ').slice(0, 900);
+      console.error(`[YouTube resolver] ${summary || 'yt-dlp failed without diagnostic output'}`);
+    }
+    if (/confirm you(?:'|’)?re not a bot|not a bot/i.test(detail)) {
+      throw new Error('YouTube temporarily blocked this server from resolving public media. Please try again later.');
+    }
+    if (/private|sign in|login|members-only|age.?restricted/i.test(detail)) {
+      throw new Error('YouTube cannot download private, login-gated, or age-restricted media. Try a public video instead.');
+    }
+    if (/enoent|not found|permission denied/i.test(detail)) {
+      throw new Error('The YouTube extraction engine is unavailable on this deployment.');
+    }
+    throw new Error('YouTube could not resolve this public video right now. Please retry shortly.');
   }
 
   const quality = selectAutomaticQuality(info, mode);
@@ -65,6 +50,7 @@ async function resolveYouTube(url, mode = 'video') {
     const valid = info.formats.find(f => f.url);
     if (valid) directStreamUrl = valid.url;
   }
+  if (!directStreamUrl) throw new Error('YouTube did not return a downloadable media stream.');
 
   return createNormalizedResponse({
     success: true,

@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 const { scoreCandidate, titleCoverage } = require('../../src/services/resolver/smartMatch/scoreCandidate');
 const { normalizeTitle, normalizeArtist, stripFeaturedArtists } = require('../../src/services/resolver/smartMatch/normalizers');
-const { SEARCH_OPTIONS } = require('../../src/services/resolver/smartMatch/spotifyMatcher');
+const { SEARCH_OPTIONS, sameRecordingIdentity } = require('../../src/services/resolver/smartMatch/spotifyMatcher');
 
 describe('Spotify Smart Match Confidence Engine (30 Requirements Test Suite)', () => {
   const baseSpotifyTrack = {
@@ -334,6 +334,8 @@ describe('Spotify Smart Match Confidence Engine (30 Requirements Test Suite)', (
     expect(SEARCH_OPTIONS.flatPlaylist).toBe(true);
     expect(SEARCH_OPTIONS.ignoreErrors).toBe(true);
     expect(SEARCH_OPTIONS.skipDownload).toBe(true);
+    expect(SEARCH_OPTIONS.jsRuntimes).toBe('node');
+    expect(SEARCH_OPTIONS.remoteComponents).toBe('ejs:github');
   });
 
   it('does not treat a featured-artist credit as missing song-title words', () => {
@@ -369,5 +371,25 @@ describe('Spotify Smart Match Confidence Engine (30 Requirements Test Suite)', (
     const track = { title: 'Gravity Falls - Symphonic Version', artist: 'Imperial Orchestra', primaryArtist: 'Imperial Orchestra', duration: 138 };
     const candidate = { title: 'Gravity Falls | Imperial Orchestra | Cinema Medley 3', uploader: 'Imperial Orchestra', duration: 138 };
     expect(scoreCandidate(track, candidate).pass).toBe(true);
+  });
+
+  it('treats uploads owned by different credited artists as the same recording', () => {
+    const metadata = {
+      title: 'Tum Hi Ho',
+      artist: 'Arijit Singh, Mithoon',
+      primaryArtist: 'Arijit Singh',
+      artists: ['Arijit Singh', 'Mithoon'],
+      duration: 261
+    };
+    const first = { candidate: { title: 'Tum Hi Ho', uploader: 'Arijit Singh', duration: 261 } };
+    const second = { candidate: { title: 'Tum Hi Ho', uploader: 'Mithoon - Topic', duration: 262 } };
+    expect(sameRecordingIdentity(first, second, metadata)).toBe(true);
+  });
+
+  it('keeps different versions ambiguous even when artist and base title match', () => {
+    const metadata = { title: 'Tum Hi Ho', artists: ['Arijit Singh'], duration: 261 };
+    const original = { candidate: { title: 'Tum Hi Ho', uploader: 'Arijit Singh', duration: 261 } };
+    const remix = { candidate: { title: 'Tum Hi Ho Remix', uploader: 'Arijit Singh', duration: 260 } };
+    expect(sameRecordingIdentity(original, remix, metadata)).toBe(false);
   });
 });

@@ -5,8 +5,9 @@ function extractionOptions() {
   return {
     dumpSingleJson: true,
     noWarnings: true,
-    noCheckCertificate: true,
-    playlistEnd: 20
+    playlistEnd: 20,
+    jsRuntimes: 'node',
+    remoteComponents: 'ejs:github'
   };
 }
 

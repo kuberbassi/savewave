@@ -3,8 +3,8 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Savewave — Video, Audio &amp; Image Downloader</title>
-  <meta name="description" content="Download public videos, audio, and images from supported links with automatic source detection. No account, no database, and no permanent media storage.">
+  <title>Savewave — Media Downloader</title>
+  <meta name="description" content="Download Savewave for Windows. Paste, preview, and save supported public media locally with no account, upload, or cloud extraction.">
   <meta name="author" content="Kuber Bassi">
   <meta name="creator" content="Kuber Bassi">
   <meta name="publisher" content="Savewave">
@@ -28,8 +28,8 @@
   <meta property="og:type" content="website">
   <meta property="og:url" content="https://savewave.kuberbassi.com/">
   <meta property="og:locale" content="en_US">
-  <meta property="og:title" content="Savewave — Video, Audio &amp; Image Downloader">
-  <meta property="og:description" content="Paste. Resolve. Save. Download supported public media with automatic source detection and no account.">
+  <meta property="og:title" content="Savewave — Media Downloader">
+  <meta property="og:description" content="Download Savewave for Windows. Paste. Resolve. Save locally.">
   <meta property="og:site_name" content="Savewave">
   <meta property="og:image" content="https://savewave.kuberbassi.com/savewave-dark.png">
   <meta property="og:image:type" content="image/png">
@@ -39,31 +39,29 @@
 
   <!-- Twitter / X -->
   <meta name="twitter:card" content="summary">
-  <meta name="twitter:title" content="Savewave — Video, Audio &amp; Image Downloader">
-  <meta name="twitter:description" content="Paste. Resolve. Save. Download supported public media without an account.">
+  <meta name="twitter:title" content="Savewave — Media Downloader">
+  <meta name="twitter:description" content="Download Savewave for Windows. Paste. Resolve. Save locally.">
   <meta name="twitter:image" content="https://savewave.kuberbassi.com/savewave-dark.png">
   <meta name="twitter:image:alt" content="Savewave logo">
 
-  <!-- Light Logo Favicon -->
-  <link rel="icon" type="image/png" href="/savewave-light.png">
-  <link rel="apple-touch-icon" href="/pwa-icon-dark.png">
+  <link rel="icon" type="image/png" sizes="64x64" href="/favicon-dark.png">
+  <link rel="apple-touch-icon" sizes="256x256" href="/apple-touch-icon.png">
 
   <!-- JSON-LD Structured Data -->
   <script type="application/ld+json">
   {
     "@context": "https://schema.org",
-    "@type": "WebApplication",
+    "@type": "SoftwareApplication",
     "name": "Savewave",
     "url": "https://savewave.kuberbassi.com/",
     "applicationCategory": "MultimediaApplication",
-    "operatingSystem": "Web",
-    "description": "Savewave resolves downloadable public video, audio, and image media from supported links without accounts or permanent media storage.",
-    "browserRequirements": "Requires JavaScript",
+    "operatingSystem": "Windows 10, Windows 11",
+    "description": "Savewave performs supported public-media extraction locally in its native applications, without accounts, media uploads, or cloud extraction.",
     "isAccessibleForFree": true,
     "featureList": [
       "Automatic source detection",
-      "Public video, audio, and image downloads",
-      "Browser-local bounded history"
+      "On-device public video, audio, and image processing",
+      "On-device bounded history"
     ],
     "author": {
       "@type": "Person",
@@ -79,8 +77,9 @@
   </script>
   
   <!-- Production React & ReactDOM -->
-  <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
-  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
+  <script src="config.js"></script>
+  <script src="vendor/react.production.min.js"></script>
+  <script src="vendor/react-dom.production.min.js"></script>
   
   <!-- Compiled Tailwind CSS & Custom Styles -->
   <link rel="stylesheet" href="theme.css">
@@ -90,10 +89,10 @@
 <body class="bg-[#e03d27] text-white min-h-screen relative overflow-x-hidden antialiased">
 
   <div id="root"></div>
-  <noscript>Savewave requires JavaScript to resolve and download supported public media links.</noscript>
+  <noscript>Savewave requires JavaScript to display application downloads.</noscript>
 
-  <!-- Pre-compiled Production React Application Bundle -->
-  <script src="app.js"></script>
+  <!-- Lightweight installation landing page -->
+  <script src="landing.js"></script>
 
   <!-- Vercel Web Analytics -->
   <script defer src="/_vercel/insights/script.js"></script>

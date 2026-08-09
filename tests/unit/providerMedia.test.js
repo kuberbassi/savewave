@@ -1,7 +1,14 @@
-const { flattenEntries, normalizeExtractedMedia, selectDirectFormat } = require('../../src/services/resolver/utils/providerMedia');
+const { extractionOptions, flattenEntries, normalizeExtractedMedia, selectDirectFormat } = require('../../src/services/resolver/utils/providerMedia');
 const { extractArtistFromHtml, parseTrackId } = require('../../src/services/resolver/smartMatch/spotifyMetadata');
 
 describe('Provider media normalization', () => {
+  it('enables the Node challenge runtime required by current YouTube extraction', () => {
+    expect(extractionOptions()).toMatchObject({
+      jsRuntimes: 'node',
+      remoteComponents: 'ejs:github'
+    });
+    expect(extractionOptions()).not.toHaveProperty('noCheckCertificate');
+  });
   it('flattens story and carousel playlists', () => {
     expect(flattenEntries({ entries: [{ id: '1', url: 'a' }, { entries: [{ id: '2', url: 'b' }] }] }).map((item) => item.id)).toEqual(['1', '2']);
   });

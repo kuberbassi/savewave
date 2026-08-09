@@ -1,0 +1,11 @@
+[[permission]]
+identifier = "android-media"
+description = "Allows the bundled Savewave Android shell to use its local media engine."
+commands.allow = [
+  "plugin:savewave-media|getCapabilities",
+  "plugin:savewave-media|getEngineStatus",
+  "plugin:savewave-media|resolveMedia",
+  "plugin:savewave-media|downloadMedia",
+  "plugin:savewave-media|cancelDownload",
+  "plugin:savewave-media|getDownloadProgress"
+]

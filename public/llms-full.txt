@@ -2,39 +2,32 @@
 
 ## Overview
 
-Savewave is a free, privacy-focused media resolver and downloader created by Kuber Bassi. Its user flow is Paste -> Resolve -> Preview -> Save.
+Savewave uses the flow Paste -> Resolve -> Preview -> Save inside its native applications. The Vercel deployment is a lightweight installation landing page only. Public-media extraction belongs to native builds and runs locally through yt-dlp and FFmpeg.
 
-## Supported public sources
+## Architecture
 
-- YouTube: videos, Shorts, and audio where the source can be resolved.
-- Instagram: public posts, Reels, photos, videos, and carousels.
-- Facebook: public videos, Reels, and post media.
-- Threads: public post images and videos.
-- X / Twitter: public images and videos.
-- SoundCloud: publicly resolvable audio.
-- Spotify: public track metadata plus strict, high-confidence matching to a downloadable audio source. Audio is not downloaded from Spotify.
-- Direct URLs: common video, audio, and image formats.
+- Shared TypeScript core: source detection, capabilities, normalized errors and progress, filenames, quality policy, Spotify scoring, and bounded IndexedDB history.
+- Website: installation and product information only, with no downloader or cloud extraction fallback.
+- Desktop adapter: Tauri commands backed by Rust-managed local sidecars, isolated temporary files, progress and cancellation.
+- Android source: Kotlin/youtubedl-android MediaStore work in progress; no APK is advertised until device validation is complete.
+- No iOS target, remote extraction VPS, browser cookies, or session import.
 
-Private, login-gated, Story, cookie-only, and browser-session-only media is intentionally rejected. Support depends on what each public source exposes and may change when a source changes its delivery system.
+Supported Windows sources include publicly resolvable YouTube, Instagram, Facebook, Threads, X/Twitter, SoundCloud and direct media. Private, login-gated, cookie-only, paid and DRM-protected content is unsupported. Spotify audio is never downloaded from Spotify; Smart Match uses public metadata and rejects ambiguous candidates.
 
-## Download behavior
+The installed Windows client checks the website's small version manifest at launch. A newer version produces an update notice with explicit installer and changelog links; Savewave does not silently replace executables.
 
-Savewave automatically detects the source and selects a compatible result. A resolved item is shown as a preview before the Save action. The final target is validated again before the browser download begins. Spotify matches must pass title, artist, version, channel, and duration confidence checks.
+## Privacy and security
 
-## Privacy and storage
-
-- No user accounts.
-- No application database.
-- No permanent server-side media storage.
-- Download history stays in the browser and has a fixed display limit with an explicit Load more action.
-- Savewave does not accept account cookies or browser sessions.
+- No accounts or application database.
+- No cloud media extraction, proxying, upload or permanent storage.
+- Native inputs are limited to public HTTP(S) targets and sidecars use structured arguments.
+- Download history stays inside the installed application on that device and can be cleared.
+- Source platforms still receive the user's network request; absolute anonymity is not claimed.
 
 ## Canonical links
 
 - Website: https://savewave.kuberbassi.com/
-- Source and documentation: https://github.com/kuberbassi/savewave
+- Source: https://github.com/kuberbassi/savewave
 - Creator: https://kuberbassi.com/
 
-## Responsible use
-
-Users are responsible for downloading only media they are authorized to save and for following source terms and applicable law.
+Only download media you own or are authorized to save, subject to source terms and applicable law.
