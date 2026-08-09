@@ -7,7 +7,7 @@
 
   A simple, privacy-first media saver with a lightweight download website and on-device native engines.
 
-  [Open web app](https://savewave.kuberbassi.com) · [Security](SECURITY.md) · [Contributing](CONTRIBUTING.md) · [MIT license](LICENSE)
+  [Official website — savewave.kuberbassi.com](https://savewave.kuberbassi.com/) · [Security](SECURITY.md) · [Contributing](CONTRIBUTING.md) · [MIT license](LICENSE)
 
   ![Tauri 2](https://img.shields.io/badge/Tauri-2-24C8DB?style=flat-square&logo=tauri&logoColor=white)
   ![TypeScript](https://img.shields.io/badge/TypeScript-5-3178C6?style=flat-square&logo=typescript&logoColor=white)
