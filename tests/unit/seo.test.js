@@ -7,8 +7,9 @@ describe('Production SEO & Discovery Configuration', () => {
     expect(html).toContain('<title>Savewave — Media Downloader</title>');
     expect(html).toContain('name="description"');
     expect(html).toContain('name="author" content="Kuber Bassi"');
-    expect(html).toContain('property="og:title"');
-    expect(html).toContain('name="twitter:card"');
+    expect(html).toContain('property="og:image" content="https://savewave.kuberbassi.com/Savewave-embed.png"');
+    expect(html).toContain('name="twitter:card" content="summary_large_image"');
+    expect(html).toContain('name="twitter:image" content="https://savewave.kuberbassi.com/Savewave-embed.png"');
     expect(html).toContain('type="application/ld+json"');
     expect(html).toContain('"@type": "SoftwareApplication"');
     expect(html).toContain('Kuber Bassi');
