@@ -20,7 +20,7 @@ const DownloadButton = ({ href, label, detail, primary = false, disabled = false
 
 const LandingPage = () => {
   const [windowsUrl, setWindowsUrl] = React.useState(RELEASE_PAGE);
-  const androidUrl = '/downloads/Savewave-android-arm64.apk';
+  const androidUrl = 'https://github.com/kuberbassi/savewave/releases/download/v1.0.5/Savewave-android-arm64.apk';
   React.useEffect(() => {
     fetch('/client-version.json', { cache: 'no-store' }).then((response) => response.ok ? response.json() : Promise.reject()).then((release) => {
       if (typeof release.downloadUrl === 'string' && release.downloadUrl.startsWith('https://github.com/')) setWindowsUrl(release.downloadUrl);
@@ -47,7 +47,7 @@ const LandingPage = () => {
             <DownloadButton href={windowsUrl} label="DOWNLOAD FOR WINDOWS" detail="WINDOWS 10/11 · 64-BIT" primary />
             <DownloadButton href={androidUrl} filename="Savewave-android-arm64.apk" label="DOWNLOAD FOR ANDROID" detail="ANDROID 10+ · ARM64 APK" />
           </div>
-          <p className="font-mono text-[10px] text-black/65 mt-4">Android may ask permission to install apps from this source.</p>
+          <p className="font-mono text-[10px] text-black/65 mt-4">Android may ask permission to install apps from this source. Keep at least 300 MB free while Android verifies and installs the 72 MB package.</p>
         </div>
 
         <div className="lg:col-span-6 paper-dark-texture border border-white/15 p-5 md:p-7 shadow-2xl btn-chamfer">

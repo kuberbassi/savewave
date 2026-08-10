@@ -16,15 +16,6 @@ describe('Web application routes', () => {
     expect(response.body.error).toContain('runs locally');
   });
 
-  it('keeps Android installer links on the Savewave download path', async () => {
-    const page = await request(app).get('/');
-    expect(page.text).toContain('landing.js');
-
-    const installer = await request(app).get('/downloads/Savewave-android-arm64.apk');
-    expect(installer.status).toBe(307);
-    expect(installer.headers.location).toBe('https://github.com/kuberbassi/savewave/releases/latest/download/Savewave-android-arm64.apk');
-  });
-
   it('returns JSON for malformed API request bodies', async () => {
     const response = await request(app)
       .post('/api/resolve')

@@ -6,6 +6,7 @@
 
 - Disabled Android release shrinking after the signed v1.0.4 production APK continued to close during startup on a physical device.
 - Kept the native Tauri media plugin and its commands intact across the Rust/Kotlin startup boundary.
+- Removed the ineffective same-site APK rewrite so mobile browsers start the versioned GitHub asset download directly.
 
 ### Downloads
 
