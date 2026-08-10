@@ -8,6 +8,7 @@
 - Kept the native Tauri media plugin and its commands intact across the Rust/Kotlin startup boundary.
 - Removed the ineffective same-site APK rewrite so mobile browsers start the versioned GitHub asset download directly.
 - Removed the web app manifest so the download website is no longer offered as an installable PWA.
+- Let GitHub handle APK downloads normally instead of forcing a cross-origin browser download from the website.
 
 ### Downloads
 

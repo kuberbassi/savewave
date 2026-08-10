@@ -12,8 +12,8 @@ const OfficialIcon = ({ name }) => {
 };
 
 
-const DownloadButton = ({ href, label, detail, primary = false, disabled = false, filename }) => (
-  <a className={`landing-download btn-chamfer ${primary ? 'is-primary' : ''} ${disabled ? 'is-disabled' : ''}`} href={disabled ? undefined : href} download={filename || undefined} aria-disabled={disabled || undefined}>
+const DownloadButton = ({ href, label, detail, primary = false, disabled = false }) => (
+  <a className={`landing-download btn-chamfer ${primary ? 'is-primary' : ''} ${disabled ? 'is-disabled' : ''}`} href={disabled ? undefined : href} aria-disabled={disabled || undefined}>
     <span>{label}</span><small>{detail}</small>
   </a>
 );
@@ -45,7 +45,7 @@ const LandingPage = () => {
           <p className="text-lg md:text-xl text-black/90 leading-relaxed max-w-xl mb-8">Download Savewave once, then use the same simple workflow inside the app. No accounts, cloud extraction, media uploads, or quality menus.</p>
           <div id="download" className="landing-downloads">
             <DownloadButton href={windowsUrl} label="DOWNLOAD FOR WINDOWS" detail="WINDOWS 10/11 · 64-BIT" primary />
-            <DownloadButton href={androidUrl} filename="Savewave-android-arm64.apk" label="DOWNLOAD FOR ANDROID" detail="ANDROID 10+ · ARM64 APK" />
+            <DownloadButton href={androidUrl} label="DOWNLOAD FOR ANDROID" detail="ANDROID 10+ · ARM64 APK" />
           </div>
           <p className="font-mono text-[10px] text-black/65 mt-4">Android may ask permission to install apps from this source. Keep at least 300 MB free while Android verifies and installs the 72 MB package.</p>
         </div>
