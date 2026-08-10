@@ -20,9 +20,9 @@ describe('Web application routes', () => {
     const page = await request(app).get('/');
     expect(page.text).toContain('landing.js');
 
-    const installer = await request(app).get('/downloads/Savewave-android-armv7.apk');
+    const installer = await request(app).get('/downloads/Savewave-android-arm64.apk');
     expect(installer.status).toBe(307);
-    expect(installer.headers.location).toBe('https://github.com/kuberbassi/savewave/releases/latest/download/Savewave-android-armv7.apk');
+    expect(installer.headers.location).toBe('https://github.com/kuberbassi/savewave/releases/latest/download/Savewave-android-arm64.apk');
   });
 
   it('returns JSON for malformed API request bodies', async () => {

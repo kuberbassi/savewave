@@ -5,7 +5,6 @@
 ### Fixed
 
 - Preserved the native Android media plugin in optimized release builds to prevent startup crashes.
-- Added an ARMv7 APK for older 32-bit Samsung and other Android phones.
 - Kept APK downloads on Savewave's domain through a same-site CDN proxy instead of navigating mobile users to GitHub.
 
 ### Downloads
@@ -13,8 +12,7 @@
 - `Savewave_1.0.4_x64-setup.exe` — Windows 10/11 64-bit installer.
 - `Savewave_1.0.4_x64-setup.exe.sha256` — checksum used to verify that installer.
 - `Savewave-android-arm64.apk` — signed Android 10+ ARM64 installer.
-- `Savewave-android-armv7.apk` — signed Android 10+ installer for older 32-bit ARM phones.
-- `Savewave-android.apk.sha256` — checksums used to verify both Android installers.
+- `Savewave-android-arm64.apk.sha256` — checksum used to verify the Android installer.
 
 [Full commit history](https://github.com/kuberbassi/savewave/commits/v1.0.4)
 

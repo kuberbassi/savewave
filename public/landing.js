@@ -56,8 +56,7 @@ const DownloadButton = ({
 }, /*#__PURE__*/React.createElement("span", null, label), /*#__PURE__*/React.createElement("small", null, detail));
 const LandingPage = () => {
   const [windowsUrl, setWindowsUrl] = React.useState(RELEASE_PAGE);
-  const androidArm64Url = '/downloads/Savewave-android-arm64.apk';
-  const androidArmv7Url = '/downloads/Savewave-android-armv7.apk';
+  const androidUrl = '/downloads/Savewave-android-arm64.apk';
   React.useEffect(() => {
     fetch('/client-version.json', {
       cache: 'no-store'
@@ -107,18 +106,13 @@ const LandingPage = () => {
     detail: "WINDOWS 10/11 · 64-BIT",
     primary: true
   }), /*#__PURE__*/React.createElement(DownloadButton, {
-    href: androidArm64Url,
+    href: androidUrl,
     filename: "Savewave-android-arm64.apk",
-    label: "ANDROID — NEWER PHONES",
+    label: "DOWNLOAD FOR ANDROID",
     detail: "ANDROID 10+ · ARM64 APK"
-  }), /*#__PURE__*/React.createElement(DownloadButton, {
-    href: androidArmv7Url,
-    filename: "Savewave-android-armv7.apk",
-    label: "ANDROID — OLDER PHONES",
-    detail: "ANDROID 10+ · 32-BIT ARM APK"
   })), /*#__PURE__*/React.createElement("p", {
     className: "font-mono text-[10px] text-black/65 mt-4"
-  }, "Use the older-phone APK if the ARM64 installer does not work on an older Samsung or other 32-bit phone. Android may ask permission to install apps from this source.")), /*#__PURE__*/React.createElement("div", {
+  }, "Android may ask permission to install apps from this source.")), /*#__PURE__*/React.createElement("div", {
     className: "lg:col-span-6 paper-dark-texture border border-white/15 p-5 md:p-7 shadow-2xl btn-chamfer"
   }, /*#__PURE__*/React.createElement("div", {
     className: "flex justify-between items-center mb-6"

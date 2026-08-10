@@ -20,8 +20,7 @@ const DownloadButton = ({ href, label, detail, primary = false, disabled = false
 
 const LandingPage = () => {
   const [windowsUrl, setWindowsUrl] = React.useState(RELEASE_PAGE);
-  const androidArm64Url = '/downloads/Savewave-android-arm64.apk';
-  const androidArmv7Url = '/downloads/Savewave-android-armv7.apk';
+  const androidUrl = '/downloads/Savewave-android-arm64.apk';
   React.useEffect(() => {
     fetch('/client-version.json', { cache: 'no-store' }).then((response) => response.ok ? response.json() : Promise.reject()).then((release) => {
       if (typeof release.downloadUrl === 'string' && release.downloadUrl.startsWith('https://github.com/')) setWindowsUrl(release.downloadUrl);
@@ -46,10 +45,9 @@ const LandingPage = () => {
           <p className="text-lg md:text-xl text-black/90 leading-relaxed max-w-xl mb-8">Download Savewave once, then use the same simple workflow inside the app. No accounts, cloud extraction, media uploads, or quality menus.</p>
           <div id="download" className="landing-downloads">
             <DownloadButton href={windowsUrl} label="DOWNLOAD FOR WINDOWS" detail="WINDOWS 10/11 · 64-BIT" primary />
-            <DownloadButton href={androidArm64Url} filename="Savewave-android-arm64.apk" label="ANDROID — NEWER PHONES" detail="ANDROID 10+ · ARM64 APK" />
-            <DownloadButton href={androidArmv7Url} filename="Savewave-android-armv7.apk" label="ANDROID — OLDER PHONES" detail="ANDROID 10+ · 32-BIT ARM APK" />
+            <DownloadButton href={androidUrl} filename="Savewave-android-arm64.apk" label="DOWNLOAD FOR ANDROID" detail="ANDROID 10+ · ARM64 APK" />
           </div>
-          <p className="font-mono text-[10px] text-black/65 mt-4">Use the older-phone APK if the ARM64 installer does not work on an older Samsung or other 32-bit phone. Android may ask permission to install apps from this source.</p>
+          <p className="font-mono text-[10px] text-black/65 mt-4">Android may ask permission to install apps from this source.</p>
         </div>
 
         <div className="lg:col-span-6 paper-dark-texture border border-white/15 p-5 md:p-7 shadow-2xl btn-chamfer">

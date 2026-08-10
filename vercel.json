@@ -4,10 +4,6 @@
     {
       "source": "/downloads/Savewave-android-arm64.apk",
       "destination": "https://github.com/kuberbassi/savewave/releases/latest/download/Savewave-android-arm64.apk"
-    },
-    {
-      "source": "/downloads/Savewave-android-armv7.apk",
-      "destination": "https://github.com/kuberbassi/savewave/releases/latest/download/Savewave-android-armv7.apk"
     }
   ],
   "headers": [
