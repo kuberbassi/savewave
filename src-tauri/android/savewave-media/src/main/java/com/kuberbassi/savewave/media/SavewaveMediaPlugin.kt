@@ -74,7 +74,7 @@ class SavewaveMediaPlugin(private val activity: Activity) : Plugin(activity) {
     @Command fun getEngineStatus(invoke: Invoke) = invoke.resolve(JSObject().apply {
         put("available", engineAvailable)
         put("initializing", engineInitializing)
-        put("version", "1.0.4")
+        put("version", "1.0.5")
         put("engineVersion", engineVersion ?: "bundled")
         put("updateAvailable", false)
         engineError?.let { put("error", it) }

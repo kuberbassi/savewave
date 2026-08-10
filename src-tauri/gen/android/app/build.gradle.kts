@@ -54,7 +54,12 @@ android {
         }
         getByName("release") {
             if (releaseSigningConfigured) signingConfig = signingConfigs.getByName("release")
-            isMinifyEnabled = true
+            // The native Tauri plugin is registered across the Rust/Kotlin
+            // boundary. R8 cannot reliably trace that startup path and has
+            // caused signed production builds to close immediately. Prefer a
+            // slightly larger, stable APK until the complete reflected graph
+            // can be proven safe under shrinking on physical devices.
+            isMinifyEnabled = false
             proguardFiles(
                 *fileTree(".") { include("**/*.pro") }
                     .plus(getDefaultProguardFile("proguard-android-optimize.txt"))

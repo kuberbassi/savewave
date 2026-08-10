@@ -1,5 +1,21 @@
 # Changelog
 
+## v1.0.5 — Android production startup
+
+### Fixed
+
+- Disabled Android release shrinking after the signed v1.0.4 production APK continued to close during startup on a physical device.
+- Kept the native Tauri media plugin and its commands intact across the Rust/Kotlin startup boundary.
+
+### Downloads
+
+- `Savewave_1.0.5_x64-setup.exe` — Windows 10/11 64-bit installer.
+- `Savewave_1.0.5_x64-setup.exe.sha256` — checksum used to verify that installer.
+- `Savewave-android-arm64.apk` — signed Android 10+ ARM64 installer.
+- `Savewave-android-arm64.apk.sha256` — checksum used to verify the Android installer.
+
+[Full commit history](https://github.com/kuberbassi/savewave/commits/v1.0.5)
+
 ## v1.0.4 — Android compatibility
 
 ### Fixed
