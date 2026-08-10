@@ -19,7 +19,7 @@
       ]
     },
     {
-      "source": "/(config.js|landing.js|vendor/.*|dist.css|style.css|theme.css|manifest.json|client-version.json|robots.txt|sitemap.xml|llms.txt|llms-full.txt)",
+      "source": "/(config.js|landing.js|vendor/.*|dist.css|style.css|theme.css|client-version.json|robots.txt|sitemap.xml|llms.txt|llms-full.txt)",
       "headers": [
         { "key": "Cache-Control", "value": "public, max-age=0, must-revalidate" }
       ]

@@ -37,10 +37,10 @@ describe('Production SEO & Discovery Configuration', () => {
     expect(fs.readFileSync(path.join(__dirname, '../../public/llms-full.txt'), 'utf-8')).toContain('Savewave');
   });
 
-  it('has a valid install manifest', () => {
-    const manifest = JSON.parse(fs.readFileSync(path.join(__dirname, '../../public/manifest.json'), 'utf-8'));
-    expect(manifest.name).toBe('Savewave');
-    expect(manifest.icons[0].src).toBe('/pwa-icon-dark.png');
+  it('does not advertise the website as an installable app', () => {
+    const html = fs.readFileSync(path.join(__dirname, '../../public/index.html'), 'utf-8');
+    expect(html).not.toContain('rel="manifest"');
+    expect(fs.existsSync(path.join(__dirname, '../../public/manifest.json'))).toBe(false);
   });
 
   it('has a valid centralized client release manifest with HTTPS links', () => {
