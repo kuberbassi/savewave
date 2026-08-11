@@ -84,6 +84,12 @@ npm run tauri:build
 
 ---
 
+## Developer & Author
+
+Created and maintained by **Kuber Bassi** ([kuberbassi.com](https://kuberbassi.com/) · [@kuberbassi](https://github.com/kuberbassi)).
+
+---
+
 ## License
 
 [MIT](LICENSE) © Kuber Bassi.

@@ -11,10 +11,15 @@
 - **Privacy**: Zero accounts, zero remote database, zero cloud media storage, and bounded local history.
 - **Unsupported**: Private, login-gated, cookie-only, paid, and DRM-protected media.
 
+## Developer & Author
+
+- **Developer**: Kuber Bassi
+- **Website**: https://kuberbassi.com/
+- **GitHub**: https://github.com/kuberbassi
+
 ## Links
 
 - Website: https://savewave.kuberbassi.com/
 - Repository: https://github.com/kuberbassi/savewave
 - Releases: https://github.com/kuberbassi/savewave/releases
 - Maintenance Guide: https://github.com/kuberbassi/savewave/blob/main/docs/MAINTENANCE.md
-- Creator: Kuber Bassi — https://kuberbassi.com/

@@ -18,10 +18,16 @@ Savewave is a privacy-first local media downloader using the Paste → Resolve �
 - **On-Device Data**: Bounded download history remains local to the device and can be cleared at any time.
 - **Safe Execution**: Structured command arguments prevent shell injection. Updates are notification-only via `client-version.json` with explicit user consent.
 
+## Developer & Creator Information
+
+- **Developer**: Kuber Bassi
+- **Personal Website**: https://kuberbassi.com/
+- **GitHub Profile**: https://github.com/kuberbassi
+- **Project Repository**: https://github.com/kuberbassi/savewave
+
 ## Canonical Links
 
 - Website: https://savewave.kuberbassi.com/
 - Source Repository: https://github.com/kuberbassi/savewave
 - Latest Releases: https://github.com/kuberbassi/savewave/releases
 - Maintenance Guide: https://github.com/kuberbassi/savewave/blob/main/docs/MAINTENANCE.md
-- Creator: Kuber Bassi — https://kuberbassi.com/
