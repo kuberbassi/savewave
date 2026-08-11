@@ -3,11 +3,11 @@
 
   # Savewave
 
-  **Paste -> Resolve -> Preview -> Save**
+  **Paste → Resolve → Preview → Save**
 
-  A simple, privacy-first media saver with a lightweight download website and on-device native engines.
+  A privacy-focused media saver for public video, audio, and image links running entirely on your device.
 
-  [Official website — savewave.kuberbassi.com](https://savewave.kuberbassi.com/) · [Changelog](CHANGELOG.md) · [Security](SECURITY.md) · [Contributing](CONTRIBUTING.md) · [MIT license](LICENSE)
+  [Official Website](https://savewave.kuberbassi.com/) · [Changelog](CHANGELOG.md) · [Maintenance Guide](docs/MAINTENANCE.md) · [License](LICENSE)
 
   ![Tauri 2](https://img.shields.io/badge/Tauri-2-24C8DB?style=flat-square&logo=tauri&logoColor=white)
   ![TypeScript](https://img.shields.io/badge/TypeScript-5-3178C6?style=flat-square&logo=typescript&logoColor=white)
@@ -18,106 +18,71 @@
 
 ---
 
-## What Savewave is
+## Overview
 
-Savewave keeps one predictable flow and automatically selects the best available source quality. It supports public, non-DRM media only. Private, login-gated, cookie-only, paid, and DRM-protected content is rejected; Savewave does not try to bypass access controls.
+Savewave is a clean, local-first media downloader. It automatically detects media sources, extracts best-available quality streams, and saves them directly to your device without accounts, cloud processing, or server uploads.
 
-The website is intentionally an installation landing page only. It does not contain the resolver or downloader. The unchanged Paste -> Resolve -> Preview -> Save workflow runs inside the installed application, with no cloud extraction server or media upload.
+- **Local Processing**: Extraction runs on-device via bundled `yt-dlp` and `FFmpeg`.
+- **Zero Cloud Storage**: No remote user database, account system, or media proxies.
+- **Public Content Only**: Supports public URLs (YouTube, Instagram, Facebook, X, SoundCloud, Direct Links, Spotify Smart Match). Private or DRM-gated media is unsupported.
 
-## Platform capabilities
+---
 
-| Capability | Web | Desktop (Tauri) | Android |
-| --- | --- | --- | --- |
-| Installation/download page | Yes | N/A | N/A |
-| Direct media URLs | No | Yes | Native local engine on Android 10+ |
-| Public YouTube/social/SoundCloud extraction | No | Local `yt-dlp` | Native local engine; final physical-device matrix pending |
-| Spotify Smart Match | No | Public metadata + shared strict scorer + local matched-source extraction | Public metadata + conservative on-device multi-query matching |
-| Downloads | Not available | OS Downloads folder | MediaStore Downloads |
-| Cookies/private media | No | No | No |
-| Cloud extraction/upload | No | No | No |
+## Tech Stack & Architecture
 
-Android source, the Tauri project, and the native media-plugin bridge are included. Release automation produces a signed ARM64 APK for Android 10+. Optimized releases preserve the reflectively loaded native plugin so production builds do not close at startup. Real-device resolve, download, cancellation, MediaStore, upgrade, and uninstall validation is still required. There is no iOS target.
+| Layer | Technologies | Responsibility |
+| --- | --- | --- |
+| **Frontend UI** | React 18, Tailwind CSS | Responsive Paste → Preview → Save interface |
+| **Core Logic** | TypeScript, Vitest | Source detection, capability gates, error handling, Spotify match scoring |
+| **Desktop App** | Tauri 2, Rust | Safe process lifecycle, URL validation, sidecar management, native saving |
+| **Media Engine** | `yt-dlp`, `FFmpeg` | Local public media extraction and stream remuxing |
+| **Android App** | Kotlin, `youtubedl-android` | Native Android engine and scoped `MediaStore` saving |
 
-## Architecture
+---
 
-Detailed references: [Architecture](docs/ARCHITECTURE.md) · [Media engine rules](docs/MEDIA_ENGINE.md) · [Release guide](docs/RELEASING.md)
+## Development Setup
 
-```text
-shared responsive UI
-        |
-shared TypeScript media core
-  detection · capabilities · errors · naming · quality · history
-        |
-  +-----+------------------+
-  |                        |
-web adapter          native adapters
-direct URLs          Tauri commands / Android plugin
-                           |
-                    local yt-dlp + FFmpeg
-```
+### Prerequisites
+- Node.js `22+`
+- Rust `stable`
 
-| Technology | Responsibility |
-| --- | --- |
-| React | Focused Paste -> Preview -> Save interface and responsive state rendering. |
-| TypeScript | Shared media contracts, source detection, capability gates, errors, filenames, quality policy, Spotify scoring, and IndexedDB history. |
-| Tauri 2 | Small desktop shell, command boundary, bundling, capabilities, and release-notification integration. |
-| Rust | URL validation, sidecar argument construction, process lifecycle, progress, cancellation, cleanup, and safe saving. |
-| yt-dlp | Local public-media metadata and extraction. |
-| FFmpeg | Local format merge/post-processing used by the extraction engine. |
-| Kotlin / youtubedl-android | Asynchronous startup, Spotify matching, ordered Instagram galleries, bounded extraction, cancellation, cleanup, and scoped MediaStore saving without broad storage permission. |
-| Express | Static web hosting and explicit `410` responses for retired cloud extraction routes. |
-| IndexedDB | Bounded on-device application history inside the native WebView. |
-| Vitest + Cargo test | Shared-core, web, resolver utility, security, argument, and cancellation tests. |
-
-## Development
-
-Requirements: Node.js 22+, npm, and Rust stable. Native release builds also require the platform's Tauri prerequisites.
+### Quick Start
 
 ```bash
+# 1. Install dependencies
 npm install
-npm run lint
-npm test
-npm run build
-```
 
-Desktop development:
+# 2. Run typecheck & test suite
+npm run check
 
-```bash
+# 3. Download local sidecars & launch desktop app in dev mode
 npm run prepare:sidecars
 npm run tauri:dev
 ```
 
-`prepare:sidecars` creates architecture-suffixed local `yt-dlp` and FFmpeg binaries under `src-tauri/binaries/`. Those generated executables are ignored by Git. Release installers bundle them as private application dependencies; end users install only one setup file.
-
-Rust checks:
+### Useful Commands
 
 ```bash
-cd src-tauri
-cargo test
+# Run test suite
+npm test
+
+# Run Rust unit tests
+cd src-tauri && cargo test
+
+# Build production desktop installer
+npm run tauri:build
 ```
 
-## Release checklist
+---
 
-1. Run the JavaScript/TypeScript and Rust checks above.
-2. Build and smoke-test each desktop target on its native operating system.
-3. Publish the installer and release notes on GitHub.
-4. Update `public/client-version.json` only after the matching installer is publicly available.
-5. Initialize and register the Android plugin, then test install, resolve, cancel, save, and upgrade flows on physical devices.
+## Documentation
 
-The Windows and Android apps perform a notification-only version check at launch. A newer version opens no executable automatically: the user explicitly chooses whether to open the installer or changelog. This avoids presenting an unsigned or placeholder automatic updater as secure. Fully automatic installation should only be added after code signing and Tauri updater signing keys are available.
+- 🏗️ [Architecture](docs/ARCHITECTURE.md) — System boundaries and lifecycle
+- ⚙️ [Media Engine Rules](docs/MEDIA_ENGINE.md) — Source detection and extraction policy
+- 🛠️ [Maintenance & Updates](docs/MAINTENANCE.md) — Tracking `yt-dlp` upstream updates
+- 🚀 [Release Process](docs/RELEASING.md) — Releasing desktop and mobile builds
 
-Do not advertise Android as production-ready until its pending integration/device checks pass. Spotify uses public Spotify metadata and rejects low-confidence external matches; correctness still depends on the public metadata Spotify exposes and the candidates available to yt-dlp.
-
-## Privacy and security
-
-- Media processing runs on the user's device in native builds.
-- The web deployment has no extraction endpoint and does not proxy media.
-- Inputs are restricted to public HTTP(S) URLs; private-network targets are rejected by native validation.
-- Sidecars receive structured arguments rather than shell command strings.
-- Every native job has isolated temporary storage and a process-scoped cancel handle.
-- History stays inside the installed application on that device and is bounded to avoid unbounded growth.
-
-Only download media you own or have permission to save. Platform terms and local law still apply.
+---
 
 ## License
 
