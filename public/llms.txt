@@ -16,6 +16,7 @@
 - **Developer**: Kuber Bassi
 - **Website**: https://kuberbassi.com/
 - **GitHub**: https://github.com/kuberbassi
+- **LinkedIn**: https://linkedin.com/in/kuberbassi
 
 ## Links
 

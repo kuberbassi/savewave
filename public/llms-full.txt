@@ -23,6 +23,7 @@ Savewave is a privacy-first local media downloader using the Paste â†’ Resolve â
 - **Developer**: Kuber Bassi
 - **Personal Website**: https://kuberbassi.com/
 - **GitHub Profile**: https://github.com/kuberbassi
+- **LinkedIn Profile**: https://linkedin.com/in/kuberbassi
 - **Project Repository**: https://github.com/kuberbassi/savewave
 
 ## Canonical Links
