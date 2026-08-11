@@ -2,32 +2,26 @@
 
 ## Overview
 
-Savewave uses the flow Paste -> Resolve -> Preview -> Save inside its native applications. The GitHub Pages deployment is a lightweight installation landing page only. Public-media extraction belongs to native builds and runs locally through yt-dlp and FFmpeg.
+Savewave is a privacy-first local media downloader using the Paste → Resolve → Preview → Save workflow. The GitHub Pages deployment (https://savewave.kuberbassi.com/) is a lightweight installation landing page. All public-media extraction runs locally on user devices via `yt-dlp` and `FFmpeg`.
 
-## Architecture
+## Architecture & Surface
 
-- Shared TypeScript core: source detection, capabilities, normalized errors and progress, filenames, quality policy, Spotify scoring, and bounded IndexedDB history.
-- Website: installation and product information only, with no downloader or cloud extraction fallback.
-- Desktop adapter: Tauri commands backed by Rust-managed local sidecars, isolated temporary files, progress and cancellation.
-- Android source: Kotlin/youtubedl-android MediaStore work in progress; no APK is advertised until device validation is complete.
-- No iOS target, remote extraction VPS, browser cookies, or session import.
+- **Shared Core**: TypeScript core handles URL source detection, capability gates, error normalization, quality policies, Spotify match scoring, and local IndexedDB history.
+- **Desktop Client**: Tauri 2 application (Rust + WebView) running bundled `yt-dlp` and `FFmpeg` sidecars in isolated temporary jobs.
+- **Android Client**: Native Android app (Kotlin) for Android 10+ with scoped `MediaStore` saving into `Downloads/Savewave`.
+- **Supported Platforms**: Public YouTube, Instagram, Facebook, Threads, X (Twitter), SoundCloud, Direct Links, and Spotify Smart Match metadata.
+- **Restrictions**: Private, login-gated, cookie-only, paid, and DRM-protected media are not supported.
 
-Supported Windows sources include publicly resolvable YouTube, Instagram, Facebook, Threads, X/Twitter, SoundCloud and direct media. Private, login-gated, cookie-only, paid and DRM-protected content is unsupported. Spotify audio is never downloaded from Spotify; Smart Match uses public metadata and rejects ambiguous candidates.
+## Privacy & Security
 
-The installed Windows client checks the website's small version manifest at launch. A newer version produces an update notice with explicit installer and changelog links; Savewave does not silently replace executables.
+- **No Cloud Services**: Zero user accounts, zero remote databases, zero media cloud storage, and zero media proxies.
+- **On-Device Data**: Bounded download history remains local to the device and can be cleared at any time.
+- **Safe Execution**: Structured command arguments prevent shell injection. Updates are notification-only via `client-version.json` with explicit user consent.
 
-## Privacy and security
-
-- No accounts or application database.
-- No cloud media extraction, proxying, upload or permanent storage.
-- Native inputs are limited to public HTTP(S) targets and sidecars use structured arguments.
-- Download history stays inside the installed application on that device and can be cleared.
-- Source platforms still receive the user's network request; absolute anonymity is not claimed.
-
-## Canonical links
+## Canonical Links
 
 - Website: https://savewave.kuberbassi.com/
-- Source: https://github.com/kuberbassi/savewave
-- Creator: https://kuberbassi.com/
-
-Only download media you own or are authorized to save, subject to source terms and applicable law.
+- Source Repository: https://github.com/kuberbassi/savewave
+- Latest Releases: https://github.com/kuberbassi/savewave/releases
+- Maintenance Guide: https://github.com/kuberbassi/savewave/blob/main/docs/MAINTENANCE.md
+- Creator: Kuber Bassi — https://kuberbassi.com/

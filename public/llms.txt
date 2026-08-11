@@ -1,19 +1,20 @@
 # Savewave
 
-> Savewave is a privacy-focused public-media saver with a lightweight installation website and on-device native extraction.
+> Savewave is a privacy-first, local-media downloader for Windows and Android with a static GitHub Pages landing website.
 
-## Product
+## Overview
 
-- Workflow: Paste -> Resolve -> Preview -> Save.
-- The website is an app-download landing page; it contains no browser downloader and does not run or proxy yt-dlp.
-- Desktop extraction uses bundled yt-dlp and FFmpeg locally through Tauri.
-- Private, login-gated, cookie-only, paid and DRM-protected content is unsupported.
-- No accounts, media upload, cloud extraction, cookies, or browser sessions.
-- Download history is bounded and stored only inside the installed application on that device.
+- **Workflow**: Paste → Resolve → Preview → Save.
+- **Website**: GitHub Pages landing site (https://savewave.kuberbassi.com/) for app setup and APK downloads. No web extraction.
+- **Local Extraction**: Runs on-device via bundled `yt-dlp` and `FFmpeg` (Tauri desktop & native Android engine).
+- **Supported Sources**: Public YouTube, Instagram, Facebook, X (Twitter), SoundCloud, Direct Media, and Spotify Smart Match.
+- **Privacy**: Zero accounts, zero remote database, zero cloud media storage, and bounded local history.
+- **Unsupported**: Private, login-gated, cookie-only, paid, and DRM-protected media.
 
 ## Links
 
 - Website: https://savewave.kuberbassi.com/
-- Source: https://github.com/kuberbassi/savewave
-- Windows releases: https://github.com/kuberbassi/savewave/releases
+- Repository: https://github.com/kuberbassi/savewave
+- Releases: https://github.com/kuberbassi/savewave/releases
+- Maintenance Guide: https://github.com/kuberbassi/savewave/blob/main/docs/MAINTENANCE.md
 - Creator: Kuber Bassi — https://kuberbassi.com/
