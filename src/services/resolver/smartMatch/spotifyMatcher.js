@@ -27,7 +27,7 @@ async function searchCandidates(queries) {
       const result = await ytdlp(query, SEARCH_OPTIONS);
       return result && result.entries ? result.entries : result && result.title ? [result] : [];
     } catch (error) {
-      if (process.env.VERCEL || process.env.NODE_ENV === 'development') {
+      if (process.env.NODE_ENV === 'development') {
         const summary = String(error.message || 'search failed').split(/\r?\n/, 1)[0];
         console.warn(`[Spotify search] ${summary}`);
       }

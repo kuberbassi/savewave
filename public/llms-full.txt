@@ -2,7 +2,7 @@
 
 ## Overview
 
-Savewave uses the flow Paste -> Resolve -> Preview -> Save inside its native applications. The Vercel deployment is a lightweight installation landing page only. Public-media extraction belongs to native builds and runs locally through yt-dlp and FFmpeg.
+Savewave uses the flow Paste -> Resolve -> Preview -> Save inside its native applications. The GitHub Pages deployment is a lightweight installation landing page only. Public-media extraction belongs to native builds and runs locally through yt-dlp and FFmpeg.
 
 ## Architecture
 

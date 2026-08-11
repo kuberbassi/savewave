@@ -4,10 +4,10 @@
 
 Savewave has two deliberately separate surfaces:
 
-- The Vercel website is a lightweight installation and product-information page.
+- The GitHub Pages website is a lightweight installation and product-information page.
 - Installed Tauri applications contain the Paste -> Resolve -> Preview -> Save workflow and execute media work locally.
 
-No extraction request is routed through Vercel. Savewave has no account system, remote user database, media proxy, or cloud media storage.
+No extraction request is routed through the website. Savewave has no account system, remote user database, media proxy, or cloud media storage.
 
 ## Layers
 

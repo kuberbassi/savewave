@@ -46,12 +46,10 @@ const DownloadButton = ({
   label,
   detail,
   primary = false,
-  disabled = false,
-  filename
+  disabled = false
 }) => /*#__PURE__*/React.createElement("a", {
   className: `landing-download btn-chamfer ${primary ? 'is-primary' : ''} ${disabled ? 'is-disabled' : ''}`,
   href: disabled ? undefined : href,
-  download: filename || undefined,
   "aria-disabled": disabled || undefined
 }, /*#__PURE__*/React.createElement("span", null, label), /*#__PURE__*/React.createElement("small", null, detail));
 const LandingPage = () => {
@@ -107,7 +105,6 @@ const LandingPage = () => {
     primary: true
   }), /*#__PURE__*/React.createElement(DownloadButton, {
     href: androidUrl,
-    filename: "Savewave-android-arm64.apk",
     label: "DOWNLOAD FOR ANDROID",
     detail: "ANDROID 10+ · ARM64 APK"
   })), /*#__PURE__*/React.createElement("p", {

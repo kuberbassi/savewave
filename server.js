@@ -38,7 +38,7 @@ app.use('/api', (req, res, next) => {
   next();
 });
 
-// Media extraction intentionally never runs on Vercel. The browser uses the
+// Media extraction intentionally never runs on cloud web hosting. The browser uses the
 // loopback-only Savewave Helper for resolve and download operations.
 app.all(['/api/resolve', '/api/prepare-download', '/api/stream'], (_req, res) => {
   return res.status(410).json({

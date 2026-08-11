@@ -19,7 +19,7 @@ async function resolveYouTube(url, mode = 'video') {
     });
   } catch (err) {
     const detail = String(err && (err.stderr || err.message) || '');
-    if (process.env.VERCEL || process.env.NODE_ENV === 'development') {
+    if (process.env.NODE_ENV === 'development') {
       const summary = detail.split(/\r?\n/).filter(Boolean).slice(-3).join(' | ').slice(0, 900);
       console.error(`[YouTube resolver] ${summary || 'yt-dlp failed without diagnostic output'}`);
     }
