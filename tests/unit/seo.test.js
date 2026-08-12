@@ -1,6 +1,5 @@
 const fs = require('fs');
 const path = require('path');
-const vm = require('vm');
 
 describe('Production SEO & Discovery Configuration', () => {
   it('has landing-page metadata and software schema', () => {
@@ -56,28 +55,7 @@ describe('Production SEO & Discovery Configuration', () => {
     expect(release.version).toBe(tauri.version);
     for (const key of ['downloadUrl', 'windowsDownloadUrl', 'androidDownloadUrl', 'releaseUrl', 'changelogUrl']) expect(new URL(release[key]).protocol).toBe('https:');
     expect(release.androidDownloadUrl).toContain(`/download/v${release.version}/Savewave-android-arm64.apk`);
-    expect(release.downloadUrl).toBe('https://savewave.kuberbassi.com/update.html');
-    const updatePage = fs.readFileSync(path.join(__dirname, '../../public/update.html'), 'utf-8');
-    const updateScript = fs.readFileSync(path.join(__dirname, '../../public/update.js'), 'utf-8');
-    expect(updatePage).toContain('id="recommended-download"');
-    expect(updateScript).toContain('/Savewave-android-arm64.apk');
-    expect(updateScript).toContain('/Savewave_1.0.6_x64-setup.exe');
-  });
-
-  it.each([
-    ['Android', 'Mozilla/5.0 (Linux; Android 16)', 'Savewave-android-arm64.apk'],
-    ['Windows', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)', 'Savewave_1.0.6_x64-setup.exe'],
-    ['other devices', 'Mozilla/5.0 (iPhone; CPU iPhone OS 19_0)', '/releases/tag/v1.0.6']
-  ])('routes %s update requests to the correct download', (_platform, userAgent, expected) => {
-    const script = fs.readFileSync(path.join(__dirname, '../../public/update.js'), 'utf-8');
-    let destination = '';
-    const elements = { link: {}, status: {} };
-    vm.runInNewContext(script, {
-      navigator: { userAgent },
-      document: { getElementById: (id) => id === 'recommended-download' ? elements.link : elements.status },
-      window: { location: { replace: (url) => { destination = url; } } }
-    });
-    expect(destination).toContain(expected);
+    expect(release.downloadUrl).toBe(`https://github.com/kuberbassi/savewave/releases/tag/v${release.version}`);
   });
 
   it('has a custom 404 page', () => {
