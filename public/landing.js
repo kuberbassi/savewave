@@ -181,8 +181,11 @@ const LandingPage = () => {
   }, copy))))))), /*#__PURE__*/React.createElement("footer", {
     className: "relative z-10 bg-[#08080a] border-t border-white/10 px-6 py-8 text-center font-mono text-xs text-zinc-400"
   }, "© 2026 SAVEWAVE · LOCAL PROCESSING · ZERO DATABASE · ", /*#__PURE__*/React.createElement("a", {
-    className: "text-white",
+    className: "text-white hover:opacity-80 transition-opacity",
     href: "https://github.com/kuberbassi/savewave"
-  }, "GITHUB")));
+  }, "GITHUB"), " · ", /*#__PURE__*/React.createElement("a", {
+    className: "text-white hover:opacity-80 transition-opacity",
+    href: "https://kuberbassi.com"
+  }, "KUBERBASSI.COM")));
 };
 ReactDOM.createRoot(document.getElementById('root')).render(/*#__PURE__*/React.createElement(LandingPage, null));
