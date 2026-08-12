@@ -14,7 +14,9 @@ import app.tauri.plugin.JSObject
 import app.tauri.plugin.Plugin
 import com.yausername.ffmpeg.FFmpeg
 import com.yausername.youtubedl_android.YoutubeDL
+import com.yausername.youtubedl_android.YoutubeDLException
 import com.yausername.youtubedl_android.YoutubeDLRequest
+import com.yausername.youtubedl_android.YoutubeDLResponse
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
@@ -22,6 +24,8 @@ import java.net.HttpURLConnection
 import java.net.InetAddress
 import java.net.URI
 import java.text.Normalizer
+import java.time.LocalDate
+import java.time.temporal.ChronoUnit
 import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.CountDownLatch
@@ -32,7 +36,8 @@ import java.util.concurrent.TimeUnit
 class SavewaveMediaPlugin(private val activity: Activity) : Plugin(activity) {
     companion object {
         private const val TAG = "SavewaveMedia"
-        private const val ENGINE_UPDATE_INTERVAL_MS = 7L * 24L * 60L * 60L * 1000L
+        private const val ENGINE_UPDATE_INTERVAL_MS = 24L * 60L * 60L * 1000L
+        private const val ENGINE_UPDATE_ATTEMPTS = 2
     }
     private val executor = Executors.newFixedThreadPool(2)
     private val jobs = ConcurrentHashMap<String, JSObject>()
@@ -49,9 +54,10 @@ class SavewaveMediaPlugin(private val activity: Activity) : Plugin(activity) {
             try {
                 YoutubeDL.getInstance().init(activity.application)
                 configurePythonTrustStore()
+                engineVersion = installedExtractorVersion()
                 refreshExtractorIfNeeded()
                 engineAvailable = true
-                engineVersion = try { YoutubeDL.getInstance().version(activity.application) } catch (_: Exception) { "bundled" }
+                engineVersion = installedExtractorVersion()
             } catch (error: Exception) {
                 engineAvailable = false
                 engineError = error.message ?: "Engine initialization failed"
@@ -74,7 +80,7 @@ class SavewaveMediaPlugin(private val activity: Activity) : Plugin(activity) {
     @Command fun getEngineStatus(invoke: Invoke) = invoke.resolve(JSObject().apply {
         put("available", engineAvailable)
         put("initializing", engineInitializing)
-        put("version", "1.0.5")
+        put("version", "1.0.6")
         put("engineVersion", engineVersion ?: "bundled")
         put("updateAvailable", false)
         engineError?.let { put("error", it) }
@@ -100,7 +106,7 @@ class SavewaveMediaPlugin(private val activity: Activity) : Plugin(activity) {
                         return@execute
                     }
                 }
-                val response = YoutubeDL.getInstance().execute(YoutubeDLRequest(url).apply {
+                val response = executeExtractor(YoutubeDLRequest(url).apply {
                     addOption("--dump-single-json"); addOption("--skip-download"); addOption("--no-playlist")
                     addOption("--no-warnings"); addOption("--socket-timeout", 15); addOption("--retries", 2)
                 })
@@ -151,7 +157,7 @@ class SavewaveMediaPlugin(private val activity: Activity) : Plugin(activity) {
                     if (mode == "audio") { addOption("-f", "bestaudio/best"); addOption("--extract-audio"); addOption("--audio-format", "best") }
                     else { addOption("-f", "bestvideo*+bestaudio/best"); addOption("--merge-output-format", "mp4/mkv") }
                 }
-                val response = YoutubeDL.getInstance().execute(ytdlp, jobId) { percent: Float, eta: Long, _: String ->
+                val response = executeExtractor(ytdlp, jobId) { percent: Float, eta: Long, _: String ->
                     if (jobs[jobId]?.optString("state") != "cancelled") {
                         jobs[jobId] = progress(jobId, "downloading", percent.toDouble()).apply { put("eta", eta) }
                     }
@@ -208,13 +214,47 @@ class SavewaveMediaPlugin(private val activity: Activity) : Plugin(activity) {
     private fun refreshExtractorIfNeeded() {
         val preferences = activity.getSharedPreferences("savewave_engine", Activity.MODE_PRIVATE)
         val lastUpdate = preferences.getLong("last_successful_update", 0L)
-        if (System.currentTimeMillis() - lastUpdate < ENGINE_UPDATE_INTERVAL_MS) return
-        try {
-            YoutubeDL.getInstance().updateYoutubeDL(activity.application, YoutubeDL.UpdateChannel.STABLE)
-            preferences.edit().putLong("last_successful_update", System.currentTimeMillis()).apply()
-        } catch (error: Exception) {
-            Log.w(TAG, "Extractor update unavailable; using bundled runtime", error)
+        val installedVersion = engineVersion ?: installedExtractorVersion()
+        val engineIsObsolete = versionAgeDays(installedVersion)?.let { it > 90 } ?: true
+        if (!engineIsObsolete && System.currentTimeMillis() - lastUpdate < ENGINE_UPDATE_INTERVAL_MS) return
+
+        val libraryPreferences = activity.getSharedPreferences("youtubedl-android", Activity.MODE_PRIVATE)
+        val recordedVersion = libraryPreferences.getString("dlpVersion", null)
+        val recordedVersionName = libraryPreferences.getString("dlpVersionName", null)
+        var lastError: Exception? = null
+        repeat(ENGINE_UPDATE_ATTEMPTS) { attempt ->
+            try {
+                // youtubedl-android compares only its saved release tag, not the
+                // executable on disk. If Android restored preferences but not the
+                // downloaded file, it can otherwise keep an obsolete bundled copy.
+                libraryPreferences.edit()
+                    .remove("dlpVersion")
+                    .remove("dlpVersionName")
+                    .commit()
+                YoutubeDL.getInstance().updateYoutubeDL(activity.application, YoutubeDL.UpdateChannel.STABLE)
+                engineVersion = installedExtractorVersion()
+                if (versionAgeDays(requireNotNull(engineVersion))?.let { it > 90 } != false) {
+                    error("The downloaded media engine is still obsolete")
+                }
+                preferences.edit().putLong("last_successful_update", System.currentTimeMillis()).apply()
+                return
+            } catch (error: Exception) {
+                lastError = error
+                Log.w(TAG, "Extractor update attempt ${attempt + 1} failed", error)
+            }
         }
+        libraryPreferences.edit().apply {
+            if (recordedVersion == null) remove("dlpVersion") else putString("dlpVersion", recordedVersion)
+            if (recordedVersionName == null) remove("dlpVersionName") else putString("dlpVersionName", recordedVersionName)
+        }.apply()
+        if (!engineIsObsolete) {
+            Log.w(TAG, "Extractor update unavailable; continuing with recent engine $installedVersion", lastError)
+            return
+        }
+        throw IllegalStateException(
+            "The media engine could not be updated. Check your connection and reopen Savewave.",
+            lastError
+        )
     }
 
     private fun configurePythonTrustStore() {
@@ -236,6 +276,39 @@ class SavewaveMediaPlugin(private val activity: Activity) : Plugin(activity) {
             ?.removePrefix("ERROR:")
             ?.trim()
         return summary?.take(240)?.ifBlank { null } ?: "The source rejected extraction"
+    }
+
+    private fun installedExtractorVersion(): String {
+        val response = YoutubeDL.getInstance().execute(
+            YoutubeDLRequest(emptyList()).apply { addOption("--version") }
+        )
+        return response.out.lineSequence().map(String::trim).firstOrNull(String::isNotBlank)
+            ?: error("The media engine did not report its version")
+    }
+
+    private fun versionAgeDays(version: String): Long? {
+        val date = Regex("\\d{4}\\.\\d{2}\\.\\d{2}").find(version)?.value ?: return null
+        return try {
+            ChronoUnit.DAYS.between(LocalDate.parse(date.replace('.', '-')), LocalDate.now())
+        } catch (_: Exception) {
+            null
+        }
+    }
+
+    private fun executeExtractor(request: YoutubeDLRequest): YoutubeDLResponse = try {
+        YoutubeDL.getInstance().execute(request)
+    } catch (error: YoutubeDLException) {
+        throw IllegalStateException(extractionMessage(error.message.orEmpty()), error)
+    }
+
+    private fun executeExtractor(
+        request: YoutubeDLRequest,
+        processId: String,
+        callback: (Float, Long, String) -> Unit
+    ): YoutubeDLResponse = try {
+        YoutubeDL.getInstance().execute(request, processId, callback)
+    } catch (error: YoutubeDLException) {
+        throw IllegalStateException(extractionMessage(error.message.orEmpty()), error)
     }
 
     private fun requireFfmpeg() {
@@ -265,7 +338,7 @@ class SavewaveMediaPlugin(private val activity: Activity) : Plugin(activity) {
     } catch (_: Exception) { false }
 
     private fun resolveInstagramGallery(url: String): InstagramGallery? {
-        val response = YoutubeDL.getInstance().execute(YoutubeDLRequest(url).apply {
+        val response = executeExtractor(YoutubeDLRequest(url).apply {
             addOption("--dump-single-json"); addOption("--skip-download"); addOption("--no-warnings"); addOption("--socket-timeout", 12); addOption("--retries", 2)
         })
         val childIds = Regex("\\[Instagram]\\s+([A-Za-z0-9_-]+):\\s+No video formats found")
@@ -392,7 +465,7 @@ class SavewaveMediaPlugin(private val activity: Activity) : Plugin(activity) {
         val request = YoutubeDLRequest("ytsearch20:$query").apply {
             addOption("--dump-single-json"); addOption("--flat-playlist"); addOption("--playlist-end", 20); addOption("--no-warnings"); addOption("--socket-timeout", 12); addOption("--retries", 2)
         }
-        val response = YoutubeDL.getInstance().execute(request)
+        val response = executeExtractor(request)
         if (response.exitCode != 0) return emptyList()
         val entries = JSONObject(response.out).optJSONArray("entries") ?: JSONArray()
         return (0 until entries.length()).mapNotNull { index ->

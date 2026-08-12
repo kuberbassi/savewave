@@ -376,7 +376,7 @@ var SavewaveCore = (() => {
 
   // src/core/platform/android.ts
   var command = (name, payload = {}) => invoke(`plugin:savewave-media|${name}`, payload);
-  var CURRENT_VERSION = "1.0.5";
+  var CURRENT_VERSION = "1.0.6";
   var RELEASE_MANIFEST = "https://raw.githubusercontent.com/kuberbassi/savewave/main/public/client-version.json";
   var TRUSTED_RELEASE_HOSTS = /* @__PURE__ */ new Set(["github.com", "raw.githubusercontent.com", "savewave.kuberbassi.com"]);
   var isNewerVersion = (candidate, installed) => {
@@ -407,9 +407,14 @@ var SavewaveCore = (() => {
         const response = await fetch(RELEASE_MANIFEST, { cache: "no-store", signal: controller.signal });
         if (!response.ok) return null;
         const release = await response.json();
-        const urls = [release.downloadUrl, release.releaseUrl, release.changelogUrl].map((value) => new URL(value));
+        if (!release.androidDownloadUrl) return null;
+        const urls = [release.androidDownloadUrl, release.releaseUrl, release.changelogUrl].map((value) => new URL(value));
         if (urls.some((url) => url.protocol !== "https:" || !TRUSTED_RELEASE_HOSTS.has(url.hostname))) return null;
-        return { ...release, updateAvailable: isNewerVersion(release.version, CURRENT_VERSION) };
+        return {
+          ...release,
+          downloadUrl: release.androidDownloadUrl,
+          updateAvailable: isNewerVersion(release.version, CURRENT_VERSION)
+        };
       } catch {
         return null;
       } finally {
@@ -440,7 +445,7 @@ var SavewaveCore = (() => {
       return capabilitiesFor("web");
     }
     async getEngineStatus() {
-      return { available: true, version: "1.0.5" };
+      return { available: true, version: "1.0.6" };
     }
     async getReleaseInfo() {
       return null;

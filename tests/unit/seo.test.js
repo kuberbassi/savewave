@@ -51,7 +51,8 @@ describe('Production SEO & Discovery Configuration', () => {
     expect(release.version).toMatch(/^\d+\.\d+\.\d+$/);
     expect(release.version).toBe(pkg.version);
     expect(release.version).toBe(tauri.version);
-    for (const key of ['downloadUrl', 'releaseUrl', 'changelogUrl']) expect(new URL(release[key]).protocol).toBe('https:');
+    for (const key of ['downloadUrl', 'androidDownloadUrl', 'releaseUrl', 'changelogUrl']) expect(new URL(release[key]).protocol).toBe('https:');
+    expect(release.androidDownloadUrl).toContain(`/download/v${release.version}/Savewave-android-arm64.apk`);
   });
 
   it('has a custom 404 page', () => {
