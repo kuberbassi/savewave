@@ -1,6 +1,7 @@
 {
   "version": "1.0.6",
-  "downloadUrl": "https://github.com/kuberbassi/savewave/releases/latest/download/Savewave_1.0.6_x64-setup.exe",
+  "downloadUrl": "https://savewave.kuberbassi.com/update.html",
+  "windowsDownloadUrl": "https://github.com/kuberbassi/savewave/releases/latest/download/Savewave_1.0.6_x64-setup.exe",
   "androidDownloadUrl": "https://github.com/kuberbassi/savewave/releases/download/v1.0.6/Savewave-android-arm64.apk",
   "releaseUrl": "https://github.com/kuberbassi/savewave/releases",
   "changelogUrl": "https://github.com/kuberbassi/savewave/releases",

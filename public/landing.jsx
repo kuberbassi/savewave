@@ -23,7 +23,8 @@ const LandingPage = () => {
   const androidUrl = 'https://github.com/kuberbassi/savewave/releases/download/v1.0.6/Savewave-android-arm64.apk';
   React.useEffect(() => {
     fetch('/client-version.json', { cache: 'no-store' }).then((response) => response.ok ? response.json() : Promise.reject()).then((release) => {
-      if (typeof release.downloadUrl === 'string' && release.downloadUrl.startsWith('https://github.com/')) setWindowsUrl(release.downloadUrl);
+      const downloadUrl = release.windowsDownloadUrl || release.downloadUrl;
+      if (typeof downloadUrl === 'string' && downloadUrl.startsWith('https://github.com/')) setWindowsUrl(downloadUrl);
     }).catch(() => { });
   }, []);
   return (
