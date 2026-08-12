@@ -95,7 +95,9 @@ const LandingPage = () => {
         </section>
       </main>
 
-      <footer className="relative z-10 bg-[#08080a] border-t border-white/10 px-6 py-8 text-center font-mono text-xs text-zinc-400">© 2026 SAVEWAVE · LOCAL PROCESSING · ZERO DATABASE · <a className="text-white" href="https://github.com/kuberbassi/savewave">GITHUB</a></footer>
+      <footer className="relative z-10 bg-[#08080a] border-t border-white/10 px-6 py-8 text-center font-mono text-xs text-zinc-400">
+        © 2026 SAVEWAVE · LOCAL PROCESSING · ZERO DATABASE · <a className="text-white hover:opacity-80 transition-opacity" href="https://github.com/kuberbassi/savewave">GITHUB</a> · <a className="text-white hover:opacity-80 transition-opacity" href="https://kuberbassi.com">KUBERBASSI.COM</a>
+      </footer>
     </div>
   );
 };

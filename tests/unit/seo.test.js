@@ -18,6 +18,8 @@ describe('Production SEO & Discovery Configuration', () => {
     expect(html).toContain('href="/apple-touch-icon.png"');
     expect(html).not.toContain('savewave-light.png');
     expect(html).not.toContain('core.js');
+    const landing = fs.readFileSync(path.join(__dirname, '../../public/landing.jsx'), 'utf-8');
+    expect(landing).toContain('href="https://kuberbassi.com"');
   });
 
   it('has production sitemap.xml with canonical domain', () => {
