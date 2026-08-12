@@ -1,6 +1,6 @@
 {
   "name": "savewave",
-  "version": "1.0.5",
+  "version": "1.0.6",
   "description": "Privacy-focused resolver and downloader for supported public video, audio, and image links.",
   "homepage": "https://savewave.kuberbassi.com/",
   "repository": {

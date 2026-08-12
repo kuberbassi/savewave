@@ -2,7 +2,7 @@ import { invoke } from '@tauri-apps/api/core';
 import type { MediaEngine } from './types';
 import type { DownloadJob, DownloadProgress, DownloadRequest, EngineStatus, MediaMode, PlatformCapabilities, ReleaseInfo, ResolvedMedia } from '../media/types';
 const command = <T>(name: string, payload: Record<string, unknown> = {}) => invoke<T>(`plugin:savewave-media|${name}`, payload);
-const CURRENT_VERSION = '1.0.5';
+const CURRENT_VERSION = '1.0.6';
 const RELEASE_MANIFEST = 'https://raw.githubusercontent.com/kuberbassi/savewave/main/public/client-version.json';
 const TRUSTED_RELEASE_HOSTS = new Set(['github.com', 'raw.githubusercontent.com', 'savewave.kuberbassi.com']);
 
@@ -29,9 +29,14 @@ export class AndroidMediaEngine implements MediaEngine {
       const response = await fetch(RELEASE_MANIFEST, { cache: 'no-store', signal: controller.signal });
       if (!response.ok) return null;
       const release = await response.json() as Omit<ReleaseInfo, 'updateAvailable'>;
-      const urls = [release.downloadUrl, release.releaseUrl, release.changelogUrl].map((value) => new URL(value));
+      if (!release.androidDownloadUrl) return null;
+      const urls = [release.androidDownloadUrl, release.releaseUrl, release.changelogUrl].map((value) => new URL(value));
       if (urls.some((url) => url.protocol !== 'https:' || !TRUSTED_RELEASE_HOSTS.has(url.hostname))) return null;
-      return { ...release, updateAvailable: isNewerVersion(release.version, CURRENT_VERSION) };
+      return {
+        ...release,
+        downloadUrl: release.androidDownloadUrl,
+        updateAvailable: isNewerVersion(release.version, CURRENT_VERSION)
+      };
     } catch {
       return null;
     } finally {

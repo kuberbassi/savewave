@@ -42,6 +42,8 @@ Android requires Java 17+, Android command-line tools, the SDK/NDK, Rust Android
 
 Android uses the same notification-only `public/client-version.json` manifest as desktop, fetched from the repository's raw `main` branch. Release links are accepted only over HTTPS from the Savewave site or GitHub. Publish and verify the signed APK/AAB before increasing the manifest version.
 
+Users install an update by opening the newer APK over the existing app. Android preserves app data when the application ID and signing key are unchanged and the new APK has a higher `versionCode`; uninstalling first is neither required nor recommended.
+
 The manual `Android Release` GitHub workflow builds an ARM64 release APK only when these repository secrets exist: `ANDROID_KEYSTORE_BASE64`, `ANDROID_KEY_ALIAS`, `ANDROID_STORE_PASSWORD`, and `ANDROID_KEY_PASSWORD`.
 
 Generate the keystore once, keep two offline backups, and never replace it: future upgrades must be signed by the same key. The workflow decodes it only into the temporary runner directory, injects signing through environment variables, verifies the APK signature, creates a SHA-256 checksum, and uploads both artifacts. Publishing remains a separate deliberate step.

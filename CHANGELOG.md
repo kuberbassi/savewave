@@ -1,5 +1,24 @@
 # Changelog
 
+## v1.0.6 — Reliable Android engine updates
+
+### Fixed
+
+- Forced Android to reconcile yt-dlp's saved release tag with the executable on disk before each daily update check, preventing restored preferences from pinning an obsolete bundled engine.
+- Retried failed engine refreshes and now stops startup with a short actionable message instead of silently using an engine that yt-dlp considers too old.
+- Reduced raw extractor failures to their final useful error so warnings no longer fill the mobile error dialog.
+- Added a dedicated signed APK URL to the release manifest so Android update notices open the Android installer instead of the Windows setup file.
+- Kept the same application ID and release signing flow while increasing Android's version code, allowing the APK to update in place without deleting the installed app.
+
+### Downloads
+
+- `Savewave_1.0.6_x64-setup.exe` — Windows 10/11 64-bit installer.
+- `Savewave_1.0.6_x64-setup.exe.sha256` — checksum used to verify that installer.
+- `Savewave-android-arm64.apk` — signed Android 10+ ARM64 in-place update.
+- `Savewave-android-arm64.apk.sha256` — checksum used to verify the Android installer.
+
+[Full commit history](https://github.com/kuberbassi/savewave/commits/v1.0.6)
+
 ## v1.0.5 — Android production startup
 
 ### Fixed

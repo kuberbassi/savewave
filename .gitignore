@@ -45,3 +45,4 @@ test-results/
 src-tauri/binaries/yt-dlp-*
 src-tauri/binaries/ffmpeg-*
 src-tauri/target/
+**/.gradle/
