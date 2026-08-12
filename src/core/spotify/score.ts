@@ -1,4 +1,4 @@
-import { normalize, versionMarkers } from './normalize';
+import { canonicalTitle, normalize, versionMarkers } from './normalize';
 export interface TrackIdentity { title: string; primaryArtist: string; artists: string[]; album?: string; duration?: number; isrc?: string; }
 export interface MatchCandidate { title: string; artist?: string; uploader?: string; album?: string; duration?: number; isrc?: string; official?: boolean; }
 function creditedArtists(track: TrackIdentity): string[] {
@@ -16,7 +16,10 @@ function corroboratesSameRecording(track: TrackIdentity, first: MatchCandidate, 
   const artists = creditedArtists(track);
   const firstIdentity = normalize(`${first.title} ${first.artist || ''}`);
   const secondIdentity = normalize(`${second.title} ${second.artist || ''}`);
-  if (!artists.every((artist) => firstIdentity.includes(artist) && secondIdentity.includes(artist))) return false;
+  const title = normalize(canonicalTitle(track.title));
+  if (!normalize(canonicalTitle(first.title)).includes(title) || !normalize(canonicalTitle(second.title)).includes(title)) return false;
+  const primary = artists[0];
+  if (!primary || !firstIdentity.includes(primary) || !secondIdentity.includes(primary)) return false;
   const expectedVersions = versionMarkers(track.title);
   const firstVersions = versionMarkers(first.title).filter((marker) => !expectedVersions.includes(marker));
   const secondVersions = versionMarkers(second.title).filter((marker) => !expectedVersions.includes(marker));
@@ -24,7 +27,7 @@ function corroboratesSameRecording(track: TrackIdentity, first: MatchCandidate, 
 }
 export function scoreCandidate(track: TrackIdentity, candidate: MatchCandidate): number {
   if (track.isrc && candidate.isrc) return track.isrc === candidate.isrc ? 150 : -100;
-  let score = 0; const title = normalize(track.title); const candidateTitle = normalize(candidate.title); const identity = normalize(`${candidate.title} ${candidate.artist || ''} ${candidate.uploader || ''}`);
+  let score = 0; const title = normalize(canonicalTitle(track.title)); const candidateTitle = normalize(canonicalTitle(candidate.title)); const identity = normalize(`${candidate.title} ${candidate.artist || ''} ${candidate.uploader || ''}`);
   if (title === candidateTitle) score += 40; else if (candidateTitle.includes(title)) score += 28; else score -= 60;
   const primary = normalize(track.primaryArtist); if (primary && identity.includes(primary)) score += 40; else if (track.artists.some(artist => identity.includes(normalize(artist)))) score += 25; else score -= 70;
   if (track.duration && candidate.duration) { const difference = Math.abs(track.duration - candidate.duration); score += difference <= 2 ? 20 : difference <= 7 ? 10 : difference > 20 ? -70 : -30; }
@@ -42,7 +45,7 @@ export function confidentMatch(track: TrackIdentity, candidates: MatchCandidate[
   if (!runnerUp || best.score - runnerUp.score >= 5) return best;
   // An exact recording on an artist-owned or Topic channel is deterministic even
   // when a second official upload represents the same source recording.
-  const exactTitle = normalize(best.candidate.title) === normalize(track.title);
+  const exactTitle = normalize(canonicalTitle(best.candidate.title)) === normalize(canonicalTitle(track.title));
   const durationClose = !track.duration || !best.candidate.duration || Math.abs(track.duration - best.candidate.duration) <= 3;
   if (exactTitle && durationClose && authoritativeOwner(track, best.candidate)) return best;
   return corroboratesSameRecording(track, best.candidate, runnerUp.candidate) ? best : null;

@@ -392,4 +392,16 @@ describe('Spotify Smart Match Confidence Engine (30 Requirements Test Suite)', (
     const remix = { candidate: { title: 'Tum Hi Ho Remix', uploader: 'Arijit Singh', duration: 260 } };
     expect(sameRecordingIdentity(original, remix, metadata)).toBe(false);
   });
+
+  it('matches Spotify soundtrack catalogue qualifiers to the base YouTube title', () => {
+    const track = { title: 'Makhna - From "Drive"', artist: 'Tanishk Bagchi, Yasser Desai', primaryArtist: 'Tanishk Bagchi', artists: ['Tanishk Bagchi', 'Yasser Desai'], duration: 183 };
+    const candidate = { title: 'Makhna', uploader: 'Tanishk Bagchi - Topic', duration: 183 };
+    expect(scoreCandidate(track, candidate).pass).toBe(true);
+  });
+
+  it('matches parenthesized featured artists without weakening version checks', () => {
+    const track = { title: 'STAY (with Justin Bieber)', artist: 'The Kid LAROI, Justin Bieber', primaryArtist: 'The Kid LAROI', artists: ['The Kid LAROI', 'Justin Bieber'], duration: 142 };
+    expect(scoreCandidate(track, { title: 'STAY', uploader: 'The Kid LAROI - Topic', duration: 142 }).pass).toBe(true);
+    expect(scoreCandidate(track, { title: 'STAY Remix', uploader: 'The Kid LAROI', duration: 142 }).pass).toBe(false);
+  });
 });

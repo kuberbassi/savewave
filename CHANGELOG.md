@@ -1,5 +1,28 @@
 # Changelog
 
+## v1.0.7 — Safer Spotify matching
+
+### Fixed
+
+- Matched Spotify soundtrack catalogue suffixes such as `From "ANIMAL"` to equivalent base-title YouTube uploads.
+- Treated parenthesized featured-artist credits as artist identity instead of requiring those words in the YouTube title.
+- Allowed two duration-aligned uploads by the primary performer to corroborate one recording when YouTube omits composer or producer credits.
+- Kept strict rejection of remixes, live recordings, covers, altered-speed versions, and materially different durations.
+
+### Verified
+
+- Benchmarked 200 Spotify playlist tracks: approximately 93% safely matched, with uncertain or region-unavailable tracks rejected.
+- Resolved famous, Unicode-title, historic, rare, long-form, and short-link YouTube cases and completed real audio and video transfer smoke tests.
+
+### Downloads
+
+- `Savewave_1.0.7_x64-setup.exe` — Windows 10/11 64-bit installer.
+- `Savewave_1.0.7_x64-setup.exe.sha256` — checksum used to verify that installer.
+- `Savewave-android-arm64.apk` — signed Android 10+ ARM64 in-place update.
+- `Savewave-android-arm64.apk.sha256` — checksum used to verify the Android installer.
+
+[Full commit history](https://github.com/kuberbassi/savewave/commits/v1.0.7)
+
 ## v1.0.6 — Reliable Android engine updates
 
 ### Fixed

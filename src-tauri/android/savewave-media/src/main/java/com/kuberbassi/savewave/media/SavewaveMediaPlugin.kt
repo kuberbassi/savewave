@@ -80,7 +80,7 @@ class SavewaveMediaPlugin(private val activity: Activity) : Plugin(activity) {
     @Command fun getEngineStatus(invoke: Invoke) = invoke.resolve(JSObject().apply {
         put("available", engineAvailable)
         put("initializing", engineInitializing)
-        put("version", "1.0.6")
+        put("version", "1.0.7")
         put("engineVersion", engineVersion ?: "bundled")
         put("updateAvailable", false)
         engineError?.let { put("error", it) }
@@ -417,7 +417,7 @@ class SavewaveMediaPlugin(private val activity: Activity) : Plugin(activity) {
             val leader = rankedSoFar.firstOrNull()
             val runner = rankedSoFar.getOrNull(1)
             if (leader != null && leader.second >= 80) {
-                val authoritative = isAuthoritativeOwner(track, leader.first) && normalized(leader.first.title) == normalized(track.title) && durationClose(track, leader.first)
+                val authoritative = isAuthoritativeOwner(track, leader.first) && normalizedTitle(leader.first.title) == normalizedTitle(track.title) && durationClose(track, leader.first)
                 val corroborated = runner != null && corroboratesSameRecording(track, leader.first, runner.first)
                 if (authoritative || corroborated) { earlyMatch = leader; break }
             }
@@ -426,7 +426,7 @@ class SavewaveMediaPlugin(private val activity: Activity) : Plugin(activity) {
         val best = earlyMatch ?: ranked.firstOrNull() ?: error("No matching public audio was found")
         val runnerUp = ranked.getOrNull(1)
         val decisive = runnerUp == null || best.second - runnerUp.second >= 5
-        val authoritativeExact = isAuthoritativeOwner(track, best.first) && normalized(best.first.title) == normalized(track.title) && durationClose(track, best.first)
+        val authoritativeExact = isAuthoritativeOwner(track, best.first) && normalizedTitle(best.first.title) == normalizedTitle(track.title) && durationClose(track, best.first)
         val corroborated = runnerUp != null && corroboratesSameRecording(track, best.first, runnerUp.first)
         if (best.second < 80 || (!decisive && !authoritativeExact && !corroborated)) error("Could not confidently match this Spotify track")
         return JSObject().apply {
@@ -479,8 +479,13 @@ class SavewaveMediaPlugin(private val activity: Activity) : Plugin(activity) {
     private fun normalized(value: String): String = Normalizer.normalize(value, Normalizer.Form.NFKD)
         .lowercase().replace(Regex("\\b(feat(?:uring)?|ft)\\.?\\b"), " ").replace(Regex("[^\\p{L}\\p{N} ]"), " ").replace(Regex("\\s+"), " ").trim()
 
+    private fun normalizedTitle(value: String): String = normalized(value
+        .replace(Regex("""(?i)\s*-\s*from\s+[\"“][^\"”]+[\"”]\s*$"""), " ")
+        .replace(Regex("""(?i)\s*\(\s*from\s+[\"“][^\"”]+[\"”]\s*\)\s*$"""), " ")
+        .replace(Regex("""(?i)\s*\(\s*with\s+[^)]+\)\s*$"""), " "))
+
     private fun scoreSpotify(track: SpotifyTrack, candidate: SearchCandidate): Int {
-        val expectedTitle = normalized(track.title); val candidateTitle = normalized(candidate.title)
+        val expectedTitle = normalizedTitle(track.title); val candidateTitle = normalizedTitle(candidate.title)
         val identity = normalized("${candidate.title} ${candidate.artist} ${candidate.uploader}")
         var score = when { candidateTitle == expectedTitle -> 45; candidateTitle.contains(expectedTitle) -> 32; else -> -55 }
         score += if (identity.contains(normalized(track.artist))) 45 else -70
@@ -511,7 +516,13 @@ class SavewaveMediaPlugin(private val activity: Activity) : Plugin(activity) {
         if (firstOwner.isBlank() || secondOwner.isBlank() || firstOwner == secondOwner || !durationClose(track, first) || !durationClose(track, second)) return false
         val artists = track.artists.map(::normalized)
         val firstIdentity = normalized("${first.title} ${first.artist}"); val secondIdentity = normalized("${second.title} ${second.artist}")
-        if (!artists.all { firstIdentity.contains(it) && secondIdentity.contains(it) }) return false
+        val expectedTitle = normalizedTitle(track.title)
+        if (!normalizedTitle(first.title).contains(expectedTitle) || !normalizedTitle(second.title).contains(expectedTitle)) return false
+        // Composer/producer credits are often absent from otherwise identical
+        // YouTube uploads. Require the primary performer on both results; do
+        // not require every Spotify credit to be repeated in each title.
+        val primaryArtist = artists.firstOrNull() ?: return false
+        if (!firstIdentity.contains(primaryArtist) || !secondIdentity.contains(primaryArtist)) return false
         val expected = spotifyVersionMarkers().filter { normalized(track.title).contains(it) }
         return spotifyVersionMarkers().none { marker -> marker !in expected && (normalized(first.title).contains(marker) || normalized(second.title).contains(marker)) }
     }

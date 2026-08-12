@@ -16,7 +16,16 @@ function normalizeString(str) {
 }
 
 function normalizeTitle(title) {
-  return normalizeString(title);
+  return normalizeString(stripCatalogQualifiers(title));
+}
+
+function stripCatalogQualifiers(title) {
+  return String(title || '')
+    .replace(/\s*-\s*from\s+["“][^"”]+["”]\s*$/gi, ' ')
+    .replace(/\s*\(\s*from\s+["“][^"”]+["”]\s*\)\s*$/gi, ' ')
+    .replace(/\s*\(\s*with\s+[^)]+\)\s*$/gi, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
 }
 
 function normalizeArtist(artist) {
@@ -88,6 +97,7 @@ function extractVersionMarkers(text) {
 module.exports = {
   normalizeString,
   normalizeTitle,
+  stripCatalogQualifiers,
   normalizeArtist,
   normalizeAlbum,
   stripFeaturedArtists,

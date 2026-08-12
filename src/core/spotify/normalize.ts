@@ -1,3 +1,4 @@
 const versionWords = ['remix', 'live', 'slowed', 'sped up', 'nightcore', 'cover', 'karaoke', 'instrumental', 'reaction', 'tutorial', 'acoustic', 'remastered', 'lyrics', 'lyric video', '8d', 'acapella'];
+export function canonicalTitle(value: string): string { return String(value || '').replace(/\s*-\s*from\s+["“][^"”]+["”]\s*$/gi, ' ').replace(/\s*\(\s*from\s+["“][^"”]+["”]\s*\)\s*$/gi, ' ').replace(/\s*\(\s*with\s+[^)]+\)\s*$/gi, ' ').trim(); }
 export function normalize(value: string): string { return String(value || '').normalize('NFKD').toLowerCase().replace(/[’']/g, '').replace(/[-–—_/|]+/g, ' ').replace(/\b(feat(?:uring)?|ft)\.?\b/g, ' ').replace(/[^\p{L}\p{N} ]/gu, ' ').replace(/\s+/g, ' ').trim(); }
 export function versionMarkers(value: string): string[] { const text = normalize(value); return versionWords.filter(word => text.includes(word)); }
