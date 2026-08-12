@@ -80,7 +80,7 @@ class SavewaveMediaPlugin(private val activity: Activity) : Plugin(activity) {
     @Command fun getEngineStatus(invoke: Invoke) = invoke.resolve(JSObject().apply {
         put("available", engineAvailable)
         put("initializing", engineInitializing)
-        put("version", "1.0.7")
+        put("version", "1.0.8")
         put("engineVersion", engineVersion ?: "bundled")
         put("updateAvailable", false)
         engineError?.let { put("error", it) }
@@ -415,20 +415,18 @@ class SavewaveMediaPlugin(private val activity: Activity) : Plugin(activity) {
             searchYoutube(query).forEach { candidates.putIfAbsent(it.id, it) }
             val rankedSoFar = candidates.values.map { it to scoreSpotify(track, it) }.sortedByDescending { it.second }
             val leader = rankedSoFar.firstOrNull()
-            val runner = rankedSoFar.getOrNull(1)
+                val alternatives = rankedSoFar.drop(1)
             if (leader != null && leader.second >= 80) {
-                val authoritative = isAuthoritativeOwner(track, leader.first) && normalizedTitle(leader.first.title) == normalizedTitle(track.title) && durationClose(track, leader.first)
-                val corroborated = runner != null && corroboratesSameRecording(track, leader.first, runner.first)
+                val authoritative = isTrustedCandidate(track, leader.first)
+                val corroborated = alternatives.any { corroboratesSameRecording(track, leader.first, it.first) }
                 if (authoritative || corroborated) { earlyMatch = leader; break }
             }
         }
         val ranked = candidates.values.map { it to scoreSpotify(track, it) }.sortedByDescending { it.second }
         val best = earlyMatch ?: ranked.firstOrNull() ?: error("No matching public audio was found")
-        val runnerUp = ranked.getOrNull(1)
-        val decisive = runnerUp == null || best.second - runnerUp.second >= 5
-        val authoritativeExact = isAuthoritativeOwner(track, best.first) && normalizedTitle(best.first.title) == normalizedTitle(track.title) && durationClose(track, best.first)
-        val corroborated = runnerUp != null && corroboratesSameRecording(track, best.first, runnerUp.first)
-        if (best.second < 80 || (!decisive && !authoritativeExact && !corroborated)) error("Could not confidently match this Spotify track")
+        val authoritative = isTrustedCandidate(track, best.first)
+        val corroborated = ranked.drop(1).any { corroboratesSameRecording(track, best.first, it.first) }
+        if ((!authoritative || best.second < 70) && (best.second < 80 || !corroborated)) error("Could not confidently match this Spotify track")
         return JSObject().apply {
             put("success", true); put("platform", "spotify"); put("title", track.title); put("creator", track.artists.joinToString(", "))
             put("thumbnail", track.thumbnail); put("type", "audio"); put("qualityLabel", "Verified high-confidence match")
@@ -481,32 +479,70 @@ class SavewaveMediaPlugin(private val activity: Activity) : Plugin(activity) {
 
     private fun normalizedTitle(value: String): String = normalized(value
         .replace(Regex("""(?i)\s*-\s*from\s+[\"“][^\"”]+[\"”]\s*$"""), " ")
-        .replace(Regex("""(?i)\s*\(\s*from\s+[\"“][^\"”]+[\"”]\s*\)\s*$"""), " ")
+        .replace(Regex("""(?i)\s*[\[(]\s*from\s+[\"“][^\"”]+[\"”]\s*[\])]\s*$"""), " ")
         .replace(Regex("""(?i)\s*\(\s*with\s+[^)]+\)\s*$"""), " "))
+
+    private fun editDistance(first: String, second: String): Int {
+        var row = IntArray(second.length + 1) { it }
+        for (i in first.indices) {
+            val next = IntArray(second.length + 1); next[0] = i + 1
+            for (j in second.indices) next[j + 1] = minOf(next[j] + 1, row[j + 1] + 1, row[j] + if (first[i] == second[j]) 0 else 1)
+            row = next
+        }
+        return row[second.length]
+    }
+
+    private fun equivalentToken(first: String, second: String): Boolean {
+        if (first == second) return true
+        val longest = maxOf(first.length, second.length)
+        return longest >= 4 && editDistance(first, second) <= if (longest >= 9) 2 else 1
+    }
+
+    private fun titleCoverage(expected: String, candidate: String): Double {
+        val expectedTokens = expected.split(' ').filter(String::isNotBlank).distinct()
+        val candidateTokens = candidate.split(' ').filter(String::isNotBlank)
+        return if (expectedTokens.isEmpty()) 0.0 else expectedTokens.count { token -> candidateTokens.any { equivalentToken(token, it) } }.toDouble() / expectedTokens.size
+    }
 
     private fun scoreSpotify(track: SpotifyTrack, candidate: SearchCandidate): Int {
         val expectedTitle = normalizedTitle(track.title); val candidateTitle = normalizedTitle(candidate.title)
         val identity = normalized("${candidate.title} ${candidate.artist} ${candidate.uploader}")
-        var score = when { candidateTitle == expectedTitle -> 45; candidateTitle.contains(expectedTitle) -> 32; else -> -55 }
-        score += if (identity.contains(normalized(track.artist))) 45 else -70
+        val coverage = titleCoverage(expectedTitle, candidateTitle)
+        var score = when { candidateTitle == expectedTitle -> 45; candidateTitle.contains(expectedTitle) || coverage >= 0.8 -> 32; else -> -55 }
+        val artistMatched = track.artists.map(::normalized).any { identity.contains(it) }
+        score += if (identity.contains(normalized(track.artist))) 45 else if (artistMatched) 30 else -70
         if (track.artists.size > 1 && track.artists.all { identity.contains(normalized(it)) }) score += 8
         if (track.duration != null && candidate.duration != null) {
             val difference = kotlin.math.abs(track.duration - candidate.duration)
             score += when { difference <= 2 -> 20; difference <= 7 -> 10; difference > 20 -> -70; else -> -30 }
         }
         if (isAuthoritativeOwner(track, candidate)) score += 18
+        else if (candidate.verified && artistMatched) score += 8
         val unwanted = spotifyVersionMarkers()
-        val expectedVersions = unwanted.filter { expectedTitle.contains(it) }
-        if (unwanted.any { candidateTitle.contains(it) && it !in expectedVersions }) score -= 70
+        val expectedVersions = unwanted.filter { hasMarker(expectedTitle, it) }
+        unwanted.filter { hasMarker(candidateTitle, it) && it !in expectedVersions }.forEach { score -= if (it == "lyrics" || it == "lyric video") 20 else 70 }
         return score
     }
 
-    private fun spotifyVersionMarkers() = listOf("remix", "live", "slowed", "sped up", "nightcore", "cover", "karaoke", "instrumental", "reaction", "tutorial", "acoustic", "remastered", "lyrics", "lyric video", "8d", "acapella")
+    private fun spotifyVersionMarkers() = listOf("remix", "live", "slowed", "sped up", "nightcore", "cover", "karaoke", "instrumental", "reaction", "tutorial", "acoustic", "remastered", "lyrics", "lyric video", "8d", "3d", "16d", "acapella", "vocals only", "female version", "male version", "arabic version", "tamil version", "telugu version")
+
+    private fun hasMarker(value: String, marker: String): Boolean =
+        Regex("(^|\\s)${Regex.escape(normalized(marker))}($|\\s)").containsMatchIn(normalized(value))
 
     private fun isAuthoritativeOwner(track: SpotifyTrack, candidate: SearchCandidate): Boolean {
         val owner = normalized(candidate.uploader)
         return track.artists.map(::normalized).any { artist -> owner == artist || owner == "$artist topic" || owner == "$artist vevo" }
     }
+
+    private fun isTrustedCandidate(track: SpotifyTrack, candidate: SearchCandidate): Boolean {
+        val identity = normalized("${candidate.title} ${candidate.artist} ${candidate.uploader}")
+        val hasArtist = track.artists.map(::normalized).any { identity.contains(it) }
+        val unexpected = spotifyVersionMarkers().filter { it != "lyrics" && it != "lyric video" && hasMarker(candidate.title, it) && !hasMarker(track.title, it) }
+        return hasArtist && durationWithin(track, candidate, 7.0) && unexpected.isEmpty() && (candidate.verified || isAuthoritativeOwner(track, candidate))
+    }
+
+    private fun durationWithin(track: SpotifyTrack, candidate: SearchCandidate, seconds: Double): Boolean =
+        track.duration == null || candidate.duration == null || kotlin.math.abs(track.duration - candidate.duration) <= seconds
 
     private fun durationClose(track: SpotifyTrack, candidate: SearchCandidate): Boolean =
         track.duration == null || candidate.duration == null || kotlin.math.abs(track.duration - candidate.duration) <= 3
@@ -517,14 +553,13 @@ class SavewaveMediaPlugin(private val activity: Activity) : Plugin(activity) {
         val artists = track.artists.map(::normalized)
         val firstIdentity = normalized("${first.title} ${first.artist}"); val secondIdentity = normalized("${second.title} ${second.artist}")
         val expectedTitle = normalizedTitle(track.title)
-        if (!normalizedTitle(first.title).contains(expectedTitle) || !normalizedTitle(second.title).contains(expectedTitle)) return false
+        if (titleCoverage(expectedTitle, normalizedTitle(first.title)) < 0.8 || titleCoverage(expectedTitle, normalizedTitle(second.title)) < 0.8) return false
         // Composer/producer credits are often absent from otherwise identical
         // YouTube uploads. Require the primary performer on both results; do
         // not require every Spotify credit to be repeated in each title.
-        val primaryArtist = artists.firstOrNull() ?: return false
-        if (!firstIdentity.contains(primaryArtist) || !secondIdentity.contains(primaryArtist)) return false
-        val expected = spotifyVersionMarkers().filter { normalized(track.title).contains(it) }
-        return spotifyVersionMarkers().none { marker -> marker !in expected && (normalized(first.title).contains(marker) || normalized(second.title).contains(marker)) }
+        if (artists.none { firstIdentity.contains(it) && secondIdentity.contains(it) }) return false
+        val expected = spotifyVersionMarkers().filter { it != "lyrics" && it != "lyric video" && hasMarker(track.title, it) }
+        return spotifyVersionMarkers().filter { it != "lyrics" && it != "lyric video" }.none { marker -> marker !in expected && (hasMarker(first.title, marker) || hasMarker(second.title, marker)) }
     }
 
     private fun trimFinishedJobs() {

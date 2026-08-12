@@ -1,6 +1,7 @@
-import { canonicalTitle, normalize, versionMarkers } from './normalize';
+import { canonicalTitle, equivalentToken, normalize, versionMarkers } from './normalize';
 export interface TrackIdentity { title: string; primaryArtist: string; artists: string[]; album?: string; duration?: number; isrc?: string; }
 export interface MatchCandidate { title: string; artist?: string; uploader?: string; album?: string; duration?: number; isrc?: string; official?: boolean; }
+function titleCoverage(expected: string, candidate: string): number { const target = [...new Set(expected.split(' ').filter(Boolean))]; const actual = candidate.split(' ').filter(Boolean); return target.length ? target.filter(token => actual.some(value => equivalentToken(token, value))).length / target.length : 0; }
 function creditedArtists(track: TrackIdentity): string[] {
   return Array.from(new Set([track.primaryArtist, ...(track.artists || [])].map(normalize).filter(Boolean)));
 }
@@ -28,7 +29,7 @@ function corroboratesSameRecording(track: TrackIdentity, first: MatchCandidate, 
 export function scoreCandidate(track: TrackIdentity, candidate: MatchCandidate): number {
   if (track.isrc && candidate.isrc) return track.isrc === candidate.isrc ? 150 : -100;
   let score = 0; const title = normalize(canonicalTitle(track.title)); const candidateTitle = normalize(canonicalTitle(candidate.title)); const identity = normalize(`${candidate.title} ${candidate.artist || ''} ${candidate.uploader || ''}`);
-  if (title === candidateTitle) score += 40; else if (candidateTitle.includes(title)) score += 28; else score -= 60;
+  if (title === candidateTitle) score += 40; else if (candidateTitle.includes(title) || titleCoverage(title, candidateTitle) >= 0.8) score += 28; else score -= 60;
   const primary = normalize(track.primaryArtist); if (primary && identity.includes(primary)) score += 40; else if (track.artists.some(artist => identity.includes(normalize(artist)))) score += 25; else score -= 70;
   if (track.duration && candidate.duration) { const difference = Math.abs(track.duration - candidate.duration); score += difference <= 2 ? 20 : difference <= 7 ? 10 : difference > 20 ? -70 : -30; }
   if (track.album && candidate.album && normalize(track.album) === normalize(candidate.album)) score += 8;

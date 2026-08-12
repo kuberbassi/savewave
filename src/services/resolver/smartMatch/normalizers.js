@@ -22,10 +22,33 @@ function normalizeTitle(title) {
 function stripCatalogQualifiers(title) {
   return String(title || '')
     .replace(/\s*-\s*from\s+["“][^"”]+["”]\s*$/gi, ' ')
-    .replace(/\s*\(\s*from\s+["“][^"”]+["”]\s*\)\s*$/gi, ' ')
+    .replace(/\s*[\[(]\s*from\s+["“][^"”]+["”]\s*[\])]\s*$/gi, ' ')
     .replace(/\s*\(\s*with\s+[^)]+\)\s*$/gi, ' ')
     .replace(/\s+/g, ' ')
     .trim();
+}
+
+function editDistance(first, second) {
+  const a = String(first || '');
+  const b = String(second || '');
+  const row = Array.from({ length: b.length + 1 }, (_, index) => index);
+  for (let i = 1; i <= a.length; i += 1) {
+    let diagonal = row[0];
+    row[0] = i;
+    for (let j = 1; j <= b.length; j += 1) {
+      const previous = row[j];
+      row[j] = Math.min(row[j] + 1, row[j - 1] + 1, diagonal + (a[i - 1] === b[j - 1] ? 0 : 1));
+      diagonal = previous;
+    }
+  }
+  return row[b.length];
+}
+
+function equivalentToken(first, second) {
+  if (first === second) return true;
+  const longest = Math.max(first.length, second.length);
+  if (longest < 4) return false;
+  return editDistance(first, second) <= (longest >= 9 ? 2 : 1);
 }
 
 function normalizeArtist(artist) {
@@ -79,15 +102,23 @@ const VERSION_MARKERS = [
   'mashup',
   'parody',
   'demo',
-  'clean'
+  'clean',
+  '3d',
+  '16d',
+  'vocals only',
+  'female version',
+  'male version',
+  'arabic version',
+  'tamil version',
+  'telugu version'
 ];
 
 function extractVersionMarkers(text) {
   if (!text) return [];
-  const norm = text.toLowerCase();
+  const norm = ` ${normalizeString(text)} `;
   const found = [];
   for (const marker of VERSION_MARKERS) {
-    if (norm.includes(marker)) {
+    if (norm.includes(` ${normalizeString(marker)} `)) {
       found.push(marker);
     }
   }
@@ -98,6 +129,7 @@ module.exports = {
   normalizeString,
   normalizeTitle,
   stripCatalogQualifiers,
+  equivalentToken,
   normalizeArtist,
   normalizeAlbum,
   stripFeaturedArtists,

@@ -1,5 +1,23 @@
 # Changelog
 
+## v1.0.8 — Stronger Hindi Spotify matching
+
+### Improved
+
+- Added spelling-tolerant matching for romanized Hindi titles and artists while preserving strict duration checks.
+- Recognized square-bracket soundtrack suffixes and more altered-version labels without mistaking words such as `delivery` for `live`.
+- Trust verified and artist-owned YouTube sources at a safe score, while requiring independent corroboration for ordinary uploads.
+- Tested every one of the supplied playlist's 185 unique tracks; uncertain and region-unavailable results remain safely rejected.
+
+### Downloads
+
+- `Savewave_1.0.8_x64-setup.exe` — Windows 10/11 64-bit installer.
+- `Savewave_1.0.8_x64-setup.exe.sha256` — installer checksum.
+- `Savewave-android-arm64.apk` — signed Android 10+ ARM64 in-place update.
+- `Savewave-android-arm64.apk.sha256` — Android installer checksum.
+
+[Full commit history](https://github.com/kuberbassi/savewave/commits/v1.0.8)
+
 ## v1.0.7 — Safer Spotify matching
 
 ### Fixed

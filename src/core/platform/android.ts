@@ -2,7 +2,7 @@ import { invoke } from '@tauri-apps/api/core';
 import type { MediaEngine } from './types';
 import type { DownloadJob, DownloadProgress, DownloadRequest, EngineStatus, MediaMode, PlatformCapabilities, ReleaseInfo, ResolvedMedia } from '../media/types';
 const command = <T>(name: string, payload: Record<string, unknown> = {}) => invoke<T>(`plugin:savewave-media|${name}`, payload);
-const CURRENT_VERSION = '1.0.7';
+const CURRENT_VERSION = '1.0.8';
 const RELEASE_MANIFEST = 'https://raw.githubusercontent.com/kuberbassi/savewave/main/public/client-version.json';
 const TRUSTED_RELEASE_HOSTS = new Set(['github.com', 'raw.githubusercontent.com', 'savewave.kuberbassi.com']);
 

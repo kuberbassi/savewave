@@ -2,7 +2,7 @@
  * Deterministic Candidate Scoring Engine for Spotify Smart Match
  */
 
-const { normalizeTitle, normalizeArtist, normalizeAlbum, stripFeaturedArtists, extractVersionMarkers } = require('./normalizers');
+const { normalizeTitle, normalizeArtist, normalizeAlbum, stripFeaturedArtists, extractVersionMarkers, equivalentToken } = require('./normalizers');
 
 const GENERIC_TITLE_WORDS = new Set([
   'official', 'audio', 'video', 'music', 'lyrics', 'lyric', 'visualizer', 'hd', 'hq',
@@ -17,7 +17,7 @@ function titleCoverage(target, candidate) {
   const targetTokens = [...new Set(meaningfulTitleTokens(target))];
   const candidateTokens = new Set(meaningfulTitleTokens(candidate));
   if (!targetTokens.length) return 0;
-  return targetTokens.filter((token) => candidateTokens.has(token)).length / targetTokens.length;
+  return targetTokens.filter((token) => [...candidateTokens].some((candidate) => equivalentToken(token, candidate))).length / targetTokens.length;
 }
 
 function scoreCandidate(spotifyMeta, candidate, debug = false) {
@@ -141,7 +141,7 @@ function scoreCandidate(spotifyMeta, candidate, debug = false) {
     bonuses.push('Official Topic Channel (+8)');
   }
   const normalizedUploader = normalizeArtist(candidate.uploader || candidate.channel || '');
-  if (candidate.isOfficialArtistChannel || uploaderLower.includes('vevo') ||
+  if (candidate.isOfficialArtistChannel || candidate.channel_is_verified || uploaderLower.includes('vevo') ||
       allArtists.some((artist) => artist && normalizedUploader.includes(artist))) {
     score += 8;
     bonuses.push('Official Artist Channel (+8)');

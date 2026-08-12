@@ -20,7 +20,7 @@ const DownloadButton = ({ href, label, detail, primary = false, disabled = false
 
 const LandingPage = () => {
   const [windowsUrl, setWindowsUrl] = React.useState(RELEASE_PAGE);
-  const androidUrl = 'https://github.com/kuberbassi/savewave/releases/download/v1.0.7/Savewave-android-arm64.apk';
+  const androidUrl = 'https://github.com/kuberbassi/savewave/releases/download/v1.0.8/Savewave-android-arm64.apk';
   React.useEffect(() => {
     fetch('/client-version.json', { cache: 'no-store' }).then((response) => response.ok ? response.json() : Promise.reject()).then((release) => {
       const downloadUrl = release.windowsDownloadUrl || release.downloadUrl;

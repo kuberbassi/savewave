@@ -1,7 +1,7 @@
 const { ytdlp } = require('../utils/ytDlpRuntime');
 const { createNormalizedResponse } = require('../types/normalized');
 const { sanitizeFilename } = require('../utils/sanitizer');
-const { scoreCandidate } = require('./scoreCandidate');
+const { scoreCandidate, titleCoverage } = require('./scoreCandidate');
 const { getSpotifyMetadata } = require('./spotifyMetadata');
 const { normalizeTitle, normalizeArtist, stripFeaturedArtists, extractVersionMarkers } = require('./normalizers');
 
@@ -57,7 +57,8 @@ function candidateUrl(candidate) {
 function sameRecordingIdentity(first, second, metadata) {
   if (!first || !second) return false;
   const targetTitle = normalizeTitle(stripFeaturedArtists(metadata.title));
-  const targetVersions = extractVersionMarkers(metadata.title).sort().join('|');
+  const recordingVersions = (value) => extractVersionMarkers(value).filter((marker) => marker !== 'lyrics').sort().join('|');
+  const targetVersions = recordingVersions(metadata.title);
   const creditedArtists = (metadata.artists || [metadata.primaryArtist || metadata.artist])
     .map(normalizeArtist)
     .filter(Boolean);
@@ -65,14 +66,28 @@ function sameRecordingIdentity(first, second, metadata) {
   const matchesIdentity = ({ candidate }) => {
     const title = normalizeTitle(stripFeaturedArtists(candidate.title));
     const text = normalizeArtist(`${candidate.artist || candidate.uploader || candidate.channel || ''} ${candidate.title || ''}`);
-    const titleMatches = title === targetTitle || title.includes(targetTitle) || targetTitle.includes(title);
+    const titleMatches = title === targetTitle || title.includes(targetTitle) || targetTitle.includes(title) || titleCoverage(targetTitle, title) >= 0.8;
     const artistMatches = creditedArtists.some((artist) => text.includes(artist));
-    const versionsMatch = extractVersionMarkers(candidate.title).sort().join('|') === targetVersions;
+    const versionsMatch = recordingVersions(candidate.title) === targetVersions;
     const durationMatches = !metadata.duration || !candidate.duration || Math.abs(metadata.duration - candidate.duration) <= 7;
     return titleMatches && artistMatches && versionsMatch && durationMatches;
   };
 
   return matchesIdentity(first) && matchesIdentity(second);
+}
+
+function trustedCandidate(result, metadata) {
+  const candidate = result?.candidate;
+  if (!candidate || result.score < 70) return false;
+  const creditedArtists = (metadata.artists || [metadata.primaryArtist || metadata.artist]).map(normalizeArtist).filter(Boolean);
+  const identity = normalizeArtist(`${candidate.artist || ''} ${candidate.uploader || candidate.channel || ''} ${candidate.title || ''}`);
+  const hasArtist = creditedArtists.some((artist) => identity.includes(artist));
+  const durationClose = !metadata.duration || !candidate.duration || Math.abs(metadata.duration - candidate.duration) <= 7;
+  const unexpectedVersions = extractVersionMarkers(candidate.title).filter((marker) => marker !== 'lyrics' && !extractVersionMarkers(metadata.title).includes(marker));
+  const uploader = normalizeArtist(candidate.uploader || candidate.channel || '');
+  const artistOwned = creditedArtists.some((artist) => uploader === artist || uploader === `${artist} topic` || uploader === `${artist} vevo`);
+  return hasArtist && durationClose && unexpectedVersions.length === 0 &&
+    (artistOwned || candidate.channel_is_verified === true || candidate.isOfficialArtistChannel === true);
 }
 
 async function resolveSpotifySmartMatch(url) {
@@ -90,12 +105,10 @@ async function resolveSpotifySmartMatch(url) {
       .map((candidate) => scoreCandidate(metadata, candidate, process.env.NODE_ENV === 'development'))
       .sort((a, b) => b.score - a.score);
     const best = ranked[0];
-    const runnerUp = ranked[1];
-    const ambiguous = runnerUp && best.score - runnerUp.score < 5 &&
-      candidateUrl(best.candidate) !== candidateUrl(runnerUp.candidate) &&
-      !sameRecordingIdentity(best, runnerUp, metadata);
+    const corroborated = ranked.slice(1).some((candidate) => sameRecordingIdentity(best, candidate, metadata));
 
-    if (!best || !best.pass || ambiguous) {
+    const trusted = trustedCandidate(best, metadata);
+    if (!best || (!trusted && !(best.pass && corroborated))) {
       throw new Error('Could not confidently match this Spotify track. Try a direct audio or YouTube link instead.');
     }
 
@@ -120,4 +133,4 @@ async function resolveSpotifySmartMatch(url) {
   }
 }
 
-module.exports = { resolveSpotifySmartMatch, searchCandidates, candidateUrl, sameRecordingIdentity, SEARCH_OPTIONS };
+module.exports = { resolveSpotifySmartMatch, searchCandidates, candidateUrl, sameRecordingIdentity, trustedCandidate, SEARCH_OPTIONS };

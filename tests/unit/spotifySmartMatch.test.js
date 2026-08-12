@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 const { scoreCandidate, titleCoverage } = require('../../src/services/resolver/smartMatch/scoreCandidate');
-const { normalizeTitle, normalizeArtist, stripFeaturedArtists } = require('../../src/services/resolver/smartMatch/normalizers');
-const { SEARCH_OPTIONS, sameRecordingIdentity } = require('../../src/services/resolver/smartMatch/spotifyMatcher');
+const { normalizeTitle, normalizeArtist, stripFeaturedArtists, extractVersionMarkers } = require('../../src/services/resolver/smartMatch/normalizers');
+const { SEARCH_OPTIONS, sameRecordingIdentity, trustedCandidate } = require('../../src/services/resolver/smartMatch/spotifyMatcher');
 
 describe('Spotify Smart Match Confidence Engine (30 Requirements Test Suite)', () => {
   const baseSpotifyTrack = {
@@ -403,5 +403,37 @@ describe('Spotify Smart Match Confidence Engine (30 Requirements Test Suite)', (
     const track = { title: 'STAY (with Justin Bieber)', artist: 'The Kid LAROI, Justin Bieber', primaryArtist: 'The Kid LAROI', artists: ['The Kid LAROI', 'Justin Bieber'], duration: 142 };
     expect(scoreCandidate(track, { title: 'STAY', uploader: 'The Kid LAROI - Topic', duration: 142 }).pass).toBe(true);
     expect(scoreCandidate(track, { title: 'STAY Remix', uploader: 'The Kid LAROI', duration: 142 }).pass).toBe(false);
+  });
+
+  it('tolerates common romanized Hindi spelling differences', () => {
+    expect(titleCoverage('Adi Adi Raat', 'Adhi Adhi Raat')).toBe(1);
+    expect(titleCoverage('Saadda Haq', 'Sadda Haq')).toBe(1);
+    expect(titleCoverage('Sayonaara', 'Sayonara')).toBe(1);
+  });
+
+  it('strips square-bracket soundtrack catalogue qualifiers', () => {
+    const track = { title: 'Malang (Title Track) [From "Malang - Unleash The Madness"]', artist: 'Ved Sharma', primaryArtist: 'Ved Sharma', artists: ['Ved Sharma'], duration: 287 };
+    expect(scoreCandidate(track, { title: 'Malang - Title Track', uploader: 'Ved Sharma - Topic', duration: 287 }).pass).toBe(true);
+  });
+
+  it('trusts a verified channel only with matching artist, duration, and recording version', () => {
+    const track = { title: 'Chaleya', artist: 'Anirudh Ravichander, Arijit Singh', primaryArtist: 'Anirudh Ravichander', artists: ['Anirudh Ravichander', 'Arijit Singh'], duration: 200 };
+    const official = { title: 'Jawan: Chaleya (Audio) | Anirudh | Arijit Singh', uploader: 'T-Series', duration: 201, channel_is_verified: true };
+    const remix = { ...official, title: 'Jawan: Chaleya Remix' };
+    expect(trustedCandidate(scoreCandidate(track, official), track)).toBe(true);
+    expect(trustedCandidate(scoreCandidate(track, remix), track)).toBe(false);
+  });
+
+  it('does not trust a lone obscure upload even when its raw score passes', () => {
+    const track = { title: 'Let Me Be', artist: 'Mickey Singh', primaryArtist: 'Mickey Singh', artists: ['Mickey Singh'], duration: 198 };
+    const obscure = { title: 'Mickey Singh Let Me Be Official Song', uploader: 'Unknown Fan', duration: 195 };
+    const scored = scoreCandidate(track, obscure);
+    expect(scored.pass).toBe(true);
+    expect(trustedCandidate(scored, track)).toBe(false);
+  });
+
+  it('detects altered-audio markers as whole terms without substring false positives', () => {
+    expect(extractVersionMarkers('Song 3D Music')).toContain('3d');
+    expect(extractVersionMarkers('Special delivery audio')).not.toContain('live');
   });
 });

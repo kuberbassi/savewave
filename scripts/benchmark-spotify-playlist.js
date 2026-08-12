@@ -1,7 +1,10 @@
 'use strict';
+const fs = require('node:fs');
 const { resolveSpotifySmartMatch } = require('../src/services/resolver/smartMatch/spotifyMatcher');
 
 const playlistId = process.argv[2] || '7AQKdFWAEiQ6BFuQ6w7hx8';
+const idsFileIndex = process.argv.indexOf('--ids-file');
+const idsFile = idsFileIndex >= 0 ? process.argv[idsFileIndex + 1] : null;
 const concurrency = Math.max(1, Math.min(6, Number(process.env.SPOTIFY_BENCHMARK_CONCURRENCY) || 4));
 
 async function publicTrackIds() {
@@ -17,7 +20,9 @@ async function publicTrackIds() {
 }
 
 async function main() {
-  const ids = await publicTrackIds();
+  const ids = idsFile
+    ? [...new Set(JSON.parse(fs.readFileSync(idsFile, 'utf8')))]
+    : await publicTrackIds();
   const results = new Array(ids.length);
   let cursor = 0;
   async function worker() {
@@ -39,7 +44,8 @@ async function main() {
   const passed = results.filter((result) => result.ok);
   const failed = results.filter((result) => !result.ok);
   process.stdout.write('\n');
-  console.log(JSON.stringify({ playlistId, tested: results.length, matched: passed.length, failed: failed.length, matchRate: Number((passed.length / results.length * 100).toFixed(1)), failures: failed }, null, 2));
+  const summary = { playlistId, idsFile, tested: results.length, matched: passed.length, failed: failed.length, matchRate: Number((passed.length / results.length * 100).toFixed(1)), failures: failed };
+  console.log(JSON.stringify(summary, null, process.env.SPOTIFY_BENCHMARK_COMPACT === '1' ? 0 : 2));
 }
 
 main().catch((error) => { console.error(error); process.exitCode = 1; });
