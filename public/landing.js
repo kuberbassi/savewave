@@ -59,7 +59,8 @@ const LandingPage = () => {
     fetch('/client-version.json', {
       cache: 'no-store'
     }).then(response => response.ok ? response.json() : Promise.reject()).then(release => {
-      if (typeof release.downloadUrl === 'string' && release.downloadUrl.startsWith('https://github.com/')) setWindowsUrl(release.downloadUrl);
+      const downloadUrl = release.windowsDownloadUrl || release.downloadUrl;
+      if (typeof downloadUrl === 'string' && downloadUrl.startsWith('https://github.com/')) setWindowsUrl(downloadUrl);
     }).catch(() => {});
   }, []);
   return /*#__PURE__*/React.createElement("div", {

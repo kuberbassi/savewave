@@ -36,4 +36,4 @@ export interface PlatformCapabilities {
   sources: Record<MediaSource, SourceCapability>;
 }
 export interface EngineStatus { available: boolean; initializing?: boolean; version: string; engineVersion?: string; ffmpegVersion?: string; updateAvailable?: boolean; }
-export interface ReleaseInfo { version: string; downloadUrl: string; androidDownloadUrl?: string; releaseUrl: string; changelogUrl: string; summary: string; updateAvailable: boolean; }
+export interface ReleaseInfo { version: string; downloadUrl: string; windowsDownloadUrl?: string; androidDownloadUrl?: string; releaseUrl: string; changelogUrl: string; summary: string; updateAvailable: boolean; }
