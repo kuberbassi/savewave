@@ -7,6 +7,7 @@ commands.allow = [
   "get_release_info",
   "get_spotify_metadata",
   "search_spotify_candidates",
+  "search_youtube_music",
   "resolve_media",
   "download_media",
   "get_download_progress",

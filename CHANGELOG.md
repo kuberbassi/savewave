@@ -1,5 +1,37 @@
 # Changelog
 
+## v1.0.9 — Smarter matching and more reliable downloads
+
+### Spotify SmartMatch
+
+- Introduced one consistent matching engine across Web, Windows and Android.
+- Search now prioritizes structured YouTube Music song results before considering broader video sources.
+- Candidates are ranked using normalized titles, all credited artists, album information when available, and track duration.
+- Alternate recordings such as live performances, remixes, covers and speed-altered versions are rejected when they do not match the Spotify release.
+- Ambiguous results fail safely, while verified alternatives can be used when the preferred source is temporarily unavailable.
+
+### Download reliability
+
+- Improved bundled FFmpeg detection and audio post-processing on Windows.
+- Added bounded network, fragment and extractor retries on Windows and Android.
+- Improved recovery from temporary source failures without retrying permanent storage, permission or cancellation errors.
+- Improved Android handling of valid YouTube Music results whose metadata structure varies between responses.
+
+### Quality and consistency
+
+- Unified matching decisions between Desktop and Android.
+- Added clearer download failures, completed filenames and consistent application-version display.
+- Validated Spotify matching and supported-source resolution through automated and packaged-client checks.
+
+### Downloads
+
+- `Savewave_1.0.9_x64-setup.exe` — Windows 10/11 64-bit installer.
+- `Savewave_1.0.9_x64-setup.exe.sha256` — installer checksum.
+- `Savewave-android-arm64.apk` — signed Android 10+ ARM64 in-place update.
+- `Savewave-android-arm64.apk.sha256` — Android installer checksum.
+
+[Full commit history](https://github.com/kuberbassi/savewave/commits/v1.0.9)
+
 ## v1.0.8 — Stronger Hindi Spotify matching
 
 ### Improved

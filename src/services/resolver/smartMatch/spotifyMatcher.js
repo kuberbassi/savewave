@@ -1,9 +1,12 @@
+'use strict';
+
 const { ytdlp } = require('../utils/ytDlpRuntime');
 const { createNormalizedResponse } = require('../types/normalized');
 const { sanitizeFilename } = require('../utils/sanitizer');
-const { scoreCandidate, titleCoverage } = require('./scoreCandidate');
+const { resolveSpotifySource } = require('../../../core/spotify/search-runtime.js');
+const { evaluateCandidate, normalize, sameRecording, versionMarkers } = require('../../../core/spotify/matcher.js');
 const { getSpotifyMetadata } = require('./spotifyMetadata');
-const { normalizeTitle, normalizeArtist, stripFeaturedArtists, extractVersionMarkers } = require('./normalizers');
+const { searchYouTubeMusic } = require('./youtubeMusic');
 
 const SEARCH_OPTIONS = Object.freeze({
   dumpSingleJson: true,
@@ -18,99 +21,98 @@ const SEARCH_OPTIONS = Object.freeze({
   remoteComponents: 'ejs:github'
 });
 
+function candidateUrl(candidate) {
+  if (candidate.url) return candidate.url;
+  if (candidate.sourceUrl) return candidate.sourceUrl;
+  if (candidate.webpage_url) return candidate.webpage_url;
+  if (candidate.videoId || candidate.id) return `https://www.youtube.com/watch?v=${candidate.videoId || candidate.id}`;
+  return null;
+}
+
+function genericCandidate(item) {
+  const id = item?.id;
+  if (!id || !item?.title) return null;
+  return {
+    videoId: id,
+    url: `https://www.youtube.com/watch?v=${id}`,
+    resultType: 'generic-video',
+    title: item.title,
+    artists: [item.artist, item.uploader, item.channel].filter(Boolean),
+    artist: item.artist,
+    uploader: item.uploader || item.channel,
+    duration: Number.isFinite(item.duration) ? item.duration : undefined,
+    verified: Boolean(item.channel_is_verified || item.isOfficialArtistChannel)
+  };
+}
+
 async function searchCandidates(queries) {
   const pool = [];
   const seen = new Set();
-
-  const searches = await Promise.allSettled(queries.map(async (query) => {
+  for (const query of queries) {
     try {
       const result = await ytdlp(query, SEARCH_OPTIONS);
-      return result && result.entries ? result.entries : result && result.title ? [result] : [];
+      const entries = result?.entries || (result?.title ? [result] : []);
+      for (const item of entries) {
+        const candidate = genericCandidate(item);
+        if (candidate && !seen.has(candidate.videoId)) {
+          seen.add(candidate.videoId);
+          pool.push(candidate);
+        }
+      }
     } catch (error) {
       if (process.env.NODE_ENV === 'development') {
         const summary = String(error.message || 'search failed').split(/\r?\n/, 1)[0];
         console.warn(`[Spotify search] ${summary}`);
-      }
-      return [];
-    }
-  }));
-
-  for (const search of searches) {
-    const entries = search.status === 'fulfilled' ? search.value : [];
-    for (const item of entries) {
-      const identity = item && (item.id || item.webpage_url || item.url);
-      if (identity && !seen.has(identity)) {
-        seen.add(identity);
-        pool.push(item);
       }
     }
   }
   return pool;
 }
 
-function candidateUrl(candidate) {
-  if (candidate.webpage_url) return candidate.webpage_url;
-  if (candidate.id) return `https://www.youtube.com/watch?v=${candidate.id}`;
-  return candidate.url || null;
+function createSearchAdapter() {
+  return {
+    async search(stage) {
+      if (stage.filter === 'generic') return searchCandidates([`ytsearch15:${stage.query}`]);
+      try {
+        return await searchYouTubeMusic(stage.query, stage.filter);
+      } catch (error) {
+        if (process.env.NODE_ENV === 'development') console.warn(`[YouTube Music] ${error.message}`);
+        return [];
+      }
+    }
+  };
 }
 
 function sameRecordingIdentity(first, second, metadata) {
-  if (!first || !second) return false;
-  const targetTitle = normalizeTitle(stripFeaturedArtists(metadata.title));
-  const recordingVersions = (value) => extractVersionMarkers(value).filter((marker) => marker !== 'lyrics').sort().join('|');
-  const targetVersions = recordingVersions(metadata.title);
-  const creditedArtists = (metadata.artists || [metadata.primaryArtist || metadata.artist])
-    .map(normalizeArtist)
-    .filter(Boolean);
-
-  const matchesIdentity = ({ candidate }) => {
-    const title = normalizeTitle(stripFeaturedArtists(candidate.title));
-    const text = normalizeArtist(`${candidate.artist || candidate.uploader || candidate.channel || ''} ${candidate.title || ''}`);
-    const titleMatches = title === targetTitle || title.includes(targetTitle) || targetTitle.includes(title) || titleCoverage(targetTitle, title) >= 0.8;
-    const artistMatches = creditedArtists.some((artist) => text.includes(artist));
-    const versionsMatch = recordingVersions(candidate.title) === targetVersions;
-    const durationMatches = !metadata.duration || !candidate.duration || Math.abs(metadata.duration - candidate.duration) <= 7;
-    return titleMatches && artistMatches && versionsMatch && durationMatches;
-  };
-
-  return matchesIdentity(first) && matchesIdentity(second);
+  if (sameRecording(metadata, first?.candidate, second?.candidate)) return true;
+  const left = first?.candidate; const right = second?.candidate;
+  if (!left || !right || normalize(left.uploader) === normalize(right.uploader)) return false;
+  const title = normalize(metadata.title);
+  const compatibleTitle = [left, right].every((item) => normalize(item.title).includes(title));
+  const compatibleDuration = [left, right].every((item) => !metadata.duration || !item.duration || Math.abs(metadata.duration - item.duration) <= 7);
+  const expectedVersions = versionMarkers(metadata.title).join('|');
+  return compatibleTitle && compatibleDuration && versionMarkers(left.title).join('|') === expectedVersions && versionMarkers(right.title).join('|') === expectedVersions;
 }
 
 function trustedCandidate(result, metadata) {
   const candidate = result?.candidate;
-  if (!candidate || result.score < 70) return false;
-  const creditedArtists = (metadata.artists || [metadata.primaryArtist || metadata.artist]).map(normalizeArtist).filter(Boolean);
-  const identity = normalizeArtist(`${candidate.artist || ''} ${candidate.uploader || candidate.channel || ''} ${candidate.title || ''}`);
-  const hasArtist = creditedArtists.some((artist) => identity.includes(artist));
+  if (!candidate || Number(result.score) < 70) return false;
+  const evaluation = evaluateCandidate(metadata, { ...candidate, resultType: 'generic-video' });
+  const authority = Boolean(candidate.channel_is_verified || candidate.isOfficialArtistChannel || candidate.official) ||
+    /(?:\btopic\b|\bvevo\b)/i.test(candidate.uploader || candidate.channel || '');
+  const identity = normalize(`${candidate.title || ''} ${candidate.artist || ''} ${candidate.uploader || candidate.channel || ''}`);
+  const hasArtist = (metadata.artists || [metadata.primaryArtist]).some((artist) => identity.includes(normalize(artist)));
+  const expectedVersions = versionMarkers(metadata.title);
+  const unexpectedVersion = versionMarkers(candidate.title).some((marker) => !expectedVersions.includes(marker));
   const durationClose = !metadata.duration || !candidate.duration || Math.abs(metadata.duration - candidate.duration) <= 7;
-  const unexpectedVersions = extractVersionMarkers(candidate.title).filter((marker) => marker !== 'lyrics' && !extractVersionMarkers(metadata.title).includes(marker));
-  const uploader = normalizeArtist(candidate.uploader || candidate.channel || '');
-  const artistOwned = creditedArtists.some((artist) => uploader === artist || uploader === `${artist} topic` || uploader === `${artist} vevo`);
-  return hasArtist && durationClose && unexpectedVersions.length === 0 &&
-    (artistOwned || candidate.channel_is_verified === true || candidate.isOfficialArtistChannel === true);
+  return authority && hasArtist && durationClose && !unexpectedVersion && (evaluation.evidence.title >= 0.6 || Number(result.score) >= 80);
 }
 
 async function resolveSpotifySmartMatch(url) {
   try {
     const metadata = await getSpotifyMetadata(url);
-    const candidates = await searchCandidates([
-      `ytsearch15:${metadata.primaryArtist} ${metadata.title} official audio`,
-      `ytsearch15:${metadata.primaryArtist} ${metadata.title} topic`,
-      `ytsearch15:${metadata.title} ${metadata.artist}`,
-      `ytsearch15:${metadata.primaryArtist} - ${metadata.title}`
-    ]);
-    if (!candidates.length) throw new Error('No audio candidates were available for this track.');
-
-    const ranked = candidates
-      .map((candidate) => scoreCandidate(metadata, candidate, process.env.NODE_ENV === 'development'))
-      .sort((a, b) => b.score - a.score);
-    const best = ranked[0];
-    const corroborated = ranked.slice(1).some((candidate) => sameRecordingIdentity(best, candidate, metadata));
-
-    const trusted = trustedCandidate(best, metadata);
-    if (!best || (!trusted && !(best.pass && corroborated))) {
-      throw new Error('Could not confidently match this Spotify track. Try a direct audio or YouTube link instead.');
-    }
+    const best = await resolveSpotifySource(metadata, createSearchAdapter());
+    if (!best) throw new Error('Could not confidently match this Spotify track. Try a direct audio or YouTube link instead.');
 
     const directUrl = candidateUrl(best.candidate);
     if (!directUrl) throw new Error('The matched source did not provide a downloadable URL.');
@@ -121,10 +123,10 @@ async function resolveSpotifySmartMatch(url) {
       type: 'audio',
       title: metadata.title,
       creator: metadata.artist,
-      thumbnail: metadata.thumbnail || best.candidate.thumbnail || null,
+      thumbnail: metadata.thumbnail || null,
       duration: metadata.duration || best.candidate.duration || null,
       filename: sanitizeFilename(`${metadata.title} - ${metadata.artist}`, 'mp3'),
-      qualityLabel: `Verified match (${best.confidenceLabel})`,
+      qualityLabel: 'Verified high-confidence match',
       isMatched: true,
       download: { directUrl, mode: 'mp3' }
     });
@@ -133,4 +135,4 @@ async function resolveSpotifySmartMatch(url) {
   }
 }
 
-module.exports = { resolveSpotifySmartMatch, searchCandidates, candidateUrl, sameRecordingIdentity, trustedCandidate, SEARCH_OPTIONS };
+module.exports = { candidateUrl, createSearchAdapter, genericCandidate, resolveSpotifySmartMatch, sameRecordingIdentity, searchCandidates, trustedCandidate, SEARCH_OPTIONS };

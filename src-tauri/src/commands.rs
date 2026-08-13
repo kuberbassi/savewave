@@ -11,6 +11,22 @@ use tauri_plugin_shell::process::CommandEvent;
 use tauri_plugin_shell::ShellExt;
 use uuid::Uuid;
 
+fn adjacent_binary(name: &str) -> Result<std::path::PathBuf, String> {
+    let executable = std::env::current_exe().map_err(|_| "ENGINE_UNAVAILABLE")?;
+    let filename = if cfg!(windows) {
+        format!("{name}.exe")
+    } else {
+        name.to_string()
+    };
+    let path = executable
+        .parent()
+        .ok_or("ENGINE_UNAVAILABLE")?
+        .join(filename);
+    path.is_file()
+        .then_some(path)
+        .ok_or("ENGINE_UNAVAILABLE".into())
+}
+
 #[tauri::command]
 pub async fn get_spotify_metadata(url: String) -> Result<Value, String> {
     crate::spotify::metadata(&url).await
@@ -19,10 +35,14 @@ pub async fn get_spotify_metadata(url: String) -> Result<Value, String> {
 #[tauri::command]
 pub async fn search_spotify_candidates(
     app: AppHandle,
-    title: String,
-    artist: String,
+    query: String,
 ) -> Result<Vec<Value>, String> {
-    crate::spotify::candidates(&app, &title, &artist).await
+    crate::spotify::candidates(&app, &query).await
+}
+
+#[tauri::command]
+pub async fn search_youtube_music(query: String, filter: String) -> Result<Value, String> {
+    crate::spotify::youtube_music_search(&query, &filter).await
 }
 
 #[tauri::command]
@@ -46,11 +66,29 @@ pub async fn get_engine_status(app: AppHandle) -> Result<EngineStatus, String> {
         },
         None => adjacent_ytdlp_version().await?,
     };
+    let ffmpeg_output = app
+        .shell()
+        .sidecar("ffmpeg")
+        .map_err(|_| "ENGINE_UNAVAILABLE")?
+        .args(["-version"])
+        .output()
+        .await
+        .map_err(|_| "ENGINE_UNAVAILABLE")?;
+    if !ffmpeg_output.status.success() {
+        return Err("ENGINE_UNAVAILABLE".into());
+    }
+    let ffmpeg_version = String::from_utf8_lossy(&ffmpeg_output.stdout)
+        .lines()
+        .next()
+        .map(str::trim)
+        .filter(|line| !line.is_empty())
+        .map(str::to_string)
+        .ok_or("ENGINE_UNAVAILABLE")?;
     Ok(EngineStatus {
         available: true,
         version: env!("CARGO_PKG_VERSION").into(),
         engine_version: Some(engine_version),
-        ffmpeg_version: None,
+        ffmpeg_version: Some(ffmpeg_version),
         update_available: false,
     })
 }
@@ -231,6 +269,8 @@ pub async fn download_media(
             speed: None,
             eta: None,
             filename: None,
+            error_code: None,
+            error_message: None,
         };
         jobs.insert(queued.clone(), None, Some(temp_dir.clone()));
         let store = app.state::<JobStore>().inner().clone();
@@ -254,6 +294,8 @@ pub async fn download_media(
                         speed: None,
                         eta: None,
                         filename: None,
+                        error_code: None,
+                        error_message: None,
                     });
                 },
                 move || {
@@ -280,6 +322,8 @@ pub async fn download_media(
                     speed: None,
                     eta: None,
                     filename: Some(filename),
+                    error_code: None,
+                    error_message: None,
                 }),
                 Err(_) => store.update(DownloadProgress {
                     job_id: id_for_task,
@@ -290,18 +334,24 @@ pub async fn download_media(
                     speed: None,
                     eta: None,
                     filename: None,
+                    error_code: Some("DOWNLOAD_FAILED".into()),
+                    error_message: Some(
+                        "The image download could not be completed. Please retry.".into(),
+                    ),
                 }),
             }
         });
         return Ok(queued);
     }
     let template = format!("{}-%(id)s.%(ext)s", title);
+    let ffmpeg_path = adjacent_binary("ffmpeg")?;
     let args = ytdlp::download_args(
         &request.url,
         &request.mode,
         downloads.to_str().ok_or("SAVE_FAILED")?,
         temp_dir.to_str().ok_or("SAVE_FAILED")?,
         &template,
+        ffmpeg_path.to_str().ok_or("ENGINE_UNAVAILABLE")?,
     )?;
     let queued = DownloadProgress {
         job_id: job_id.clone(),
@@ -312,6 +362,8 @@ pub async fn download_media(
         speed: None,
         eta: None,
         filename: None,
+        error_code: None,
+        error_message: None,
     };
     let (mut receiver, child) = app
         .shell()
@@ -324,6 +376,9 @@ pub async fn download_media(
     let store = app.state::<JobStore>().inner().clone();
     let id_for_task = job_id.clone();
     tauri::async_runtime::spawn(async move {
+        let mut stdout = String::new();
+        let mut stderr = String::new();
+        let mut completed_filename = None;
         while let Some(event) = receiver.recv().await {
             if store
                 .get(&id_for_task)
@@ -333,7 +388,12 @@ pub async fn download_media(
             }
             match event {
                 CommandEvent::Stdout(bytes) => {
-                    if let Some(percent) = parse_percent(&String::from_utf8_lossy(&bytes)) {
+                    let output = String::from_utf8_lossy(&bytes);
+                    append_bounded(&mut stdout, &output);
+                    if let Some(filename) = parse_output_filename(&stdout) {
+                        completed_filename = Some(filename);
+                    }
+                    if let Some(percent) = parse_percent(&output) {
                         store.update(DownloadProgress {
                             job_id: id_for_task.clone(),
                             state: "downloading".into(),
@@ -342,13 +402,24 @@ pub async fn download_media(
                             total_bytes: None,
                             speed: None,
                             eta: None,
-                            filename: None,
+                            filename: completed_filename.clone(),
+                            error_code: None,
+                            error_message: None,
                         });
                     }
+                }
+                CommandEvent::Stderr(bytes) => {
+                    append_bounded(&mut stderr, &String::from_utf8_lossy(&bytes))
                 }
                 CommandEvent::Terminated(payload) => {
                     let _ = std::fs::remove_dir_all(&temp_dir);
                     let success = payload.code == Some(0);
+                    let (error_code, error_message) = if success {
+                        (None, None)
+                    } else {
+                        let (code, message) = classify_download_error(&stderr);
+                        (Some(code.into()), Some(message))
+                    };
                     store.update(DownloadProgress {
                         job_id: id_for_task.clone(),
                         state: if success { "completed" } else { "error" }.into(),
@@ -357,7 +428,9 @@ pub async fn download_media(
                         total_bytes: None,
                         speed: None,
                         eta: None,
-                        filename: None,
+                        filename: completed_filename.clone(),
+                        error_code,
+                        error_message,
                     });
                     break;
                 }
@@ -385,13 +458,90 @@ fn parse_percent(line: &str) -> Option<f64> {
     before.split_whitespace().last()?.parse().ok()
 }
 
+fn parse_output_filename(output: &str) -> Option<String> {
+    output.lines().find_map(|line| {
+        let path = line.trim().strip_prefix("savewave-file:")?;
+        std::path::Path::new(path)
+            .file_name()
+            .and_then(|name| name.to_str())
+            .map(str::to_string)
+    })
+}
+
+fn append_bounded(target: &mut String, value: &str) {
+    target.push_str(value);
+    if target.len() > 8_192 {
+        let split = target.len() - 8_192;
+        target.drain(..split);
+    }
+}
+
+fn classify_download_error(stderr: &str) -> (&'static str, String) {
+    let lower = stderr.to_ascii_lowercase();
+    if lower.contains("ffmpeg not found") || lower.contains("ffprobe and ffmpeg not found") {
+        return (
+            "ENGINE_UNAVAILABLE",
+            "The bundled media processor is unavailable. Reinstall Savewave and retry.".into(),
+        );
+    }
+    if lower.contains("no space left") || lower.contains("disk full") {
+        return (
+            "SAVE_FAILED",
+            "There is not enough free storage to finish this download.".into(),
+        );
+    }
+    if lower.contains("permission denied") || lower.contains("access is denied") {
+        return (
+            "PERMISSION_DENIED",
+            "Savewave could not write to the Downloads folder.".into(),
+        );
+    }
+    if lower.contains("private video")
+        || lower.contains("sign in")
+        || lower.contains("cookies")
+        || lower.contains("login")
+    {
+        return (
+            "SOURCE_REJECTED",
+            "This source is private or login-gated. Try public media instead.".into(),
+        );
+    }
+    if lower.contains("timed out")
+        || lower.contains("http error")
+        || lower.contains("unable to download")
+    {
+        return (
+            "SOURCE_UNAVAILABLE",
+            "The source interrupted the download. Check your connection and retry.".into(),
+        );
+    }
+    (
+        "DOWNLOAD_FAILED",
+        "The download could not be completed. Please retry.".into(),
+    )
+}
+
 #[cfg(test)]
 mod tests {
-    use super::{parse_percent, version_is_newer};
+    use super::{classify_download_error, parse_output_filename, parse_percent, version_is_newer};
     #[test]
     fn parses_normalized_progress() {
         assert_eq!(parse_percent("[download]  42.5% of 10MiB"), Some(42.5));
         assert_eq!(parse_percent("warning"), None);
+    }
+    #[test]
+    fn parses_completed_filename_from_ytdlp_output() {
+        assert_eq!(
+            parse_output_filename("savewave-file:C:\\Downloads\\Song.webm\n"),
+            Some("Song.webm".into())
+        );
+    }
+    #[test]
+    fn reports_missing_bundled_ffmpeg_actionably() {
+        let (code, message) =
+            classify_download_error("ERROR: Postprocessing: ffprobe and ffmpeg not found");
+        assert_eq!(code, "ENGINE_UNAVAILABLE");
+        assert!(message.contains("media processor"));
     }
     #[test]
     fn compares_release_versions_numerically() {

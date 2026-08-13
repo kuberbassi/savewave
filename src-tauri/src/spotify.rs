@@ -84,16 +84,54 @@ pub async fn metadata(url: &str) -> Result<Value, String> {
     )
 }
 
-pub async fn candidates(app: &AppHandle, title: &str, artist: &str) -> Result<Vec<Value>, String> {
+pub async fn youtube_music_search(query: &str, filter: &str) -> Result<Value, String> {
+    let params = match filter {
+        "songs" => "EgWKAQIIAWoKEAkQBRAKEAMQBA==",
+        "videos" => "EgWKAQIQAWoKEAkQChAFEAMQBA==",
+        _ => return Err("INVALID_REQUEST".into()),
+    };
+    let client = reqwest::Client::builder()
+        .user_agent(
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/131 Safari/537.36",
+        )
+        .timeout(std::time::Duration::from_secs(8))
+        .build()
+        .map_err(|_| "SOURCE_UNAVAILABLE")?;
+    let html = client
+        .get("https://music.youtube.com/")
+        .send()
+        .await
+        .map_err(|_| "SOURCE_UNAVAILABLE")?
+        .error_for_status()
+        .map_err(|_| "SOURCE_UNAVAILABLE")?
+        .text()
+        .await
+        .map_err(|_| "SOURCE_UNAVAILABLE")?
+        .replace("\\\"", "\"");
+    let api_key = Regex::new(r#"\"INNERTUBE_API_KEY\":\"([^\"]+)\""#)
+        .ok()
+        .and_then(|regex| regex.captures(&html))
+        .and_then(|capture| capture.get(1))
+        .map(|value| value.as_str().to_string())
+        .ok_or("SOURCE_UNAVAILABLE")?;
+    let client_version = Regex::new(r#"\"INNERTUBE_CLIENT_VERSION\":\"([^\"]+)\""#)
+        .ok()
+        .and_then(|regex| regex.captures(&html))
+        .and_then(|capture| capture.get(1))
+        .map(|value| value.as_str().to_string())
+        .ok_or("SOURCE_UNAVAILABLE")?;
+    client.post("https://music.youtube.com/youtubei/v1/search")
+        .query(&[("key", api_key.as_str()), ("prettyPrint", "false")])
+        .header("Origin", "https://music.youtube.com")
+        .json(&json!({"context":{"client":{"clientName":"WEB_REMIX","clientVersion":client_version,"hl":"en"}},"query":query,"params":params}))
+        .send().await.map_err(|_| "SOURCE_UNAVAILABLE")?.error_for_status()
+        .map_err(|_| "SOURCE_UNAVAILABLE")?.json().await.map_err(|_| "SOURCE_UNAVAILABLE".into())
+}
+
+pub async fn candidates(app: &AppHandle, query: &str) -> Result<Vec<Value>, String> {
     let mut seen = std::collections::HashSet::new();
     let mut candidates = Vec::new();
-    for query in [
-        format!("ytsearch25:{artist} Topic {title}"),
-        format!("ytsearch15:{artist} {title} official audio"),
-        format!("ytsearch15:{artist} {title} topic"),
-        format!("ytsearch15:{title} {artist}"),
-        format!("ytsearch15:{artist} - {title}"),
-    ] {
+    for query in [format!("ytsearch15:{query}")] {
         let output = app
             .shell()
             .sidecar("yt-dlp")
@@ -128,7 +166,7 @@ pub async fn candidates(app: &AppHandle, title: &str, artist: &str) -> Result<Ve
             if !seen.insert(id.to_string()) {
                 continue;
             }
-            candidates.push(json!({"id":id,"title":entry["title"],"artist":entry["artist"],"uploader":entry["uploader"],"duration":entry["duration"],"official":entry["channel_is_verified"].as_bool().unwrap_or(false),"sourceUrl":format!("https://www.youtube.com/watch?v={id}")}));
+            candidates.push(json!({"videoId":id,"title":entry["title"],"artists":[entry["artist"],entry["uploader"]],"artist":entry["artist"],"uploader":entry["uploader"],"duration":entry["duration"],"verified":entry["channel_is_verified"].as_bool().unwrap_or(false),"resultType":"generic-video","sourceUrl":format!("https://www.youtube.com/watch?v={id}"),"url":format!("https://www.youtube.com/watch?v={id}")}));
         }
     }
     if candidates.is_empty() {

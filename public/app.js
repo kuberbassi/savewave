@@ -239,6 +239,7 @@ const PlatformCard = ({
 
 // Main Savewave Application
 const SavewaveApp = () => {
+  const appVersion = window.SavewaveConfig.version;
   const [activeTab, setActiveTab] = useState('downloader');
   const [url, setUrl] = useState('');
   const [platformInfo, setPlatformInfo] = useState(null);
@@ -540,27 +541,40 @@ const SavewaveApp = () => {
       });
     }, 300);
     try {
-      const job = await engineRef.current.downloadMedia({
-        url: mediaInfo.sourceUrl || resolvedInput.url,
-        mode,
-        title: mediaInfo.title
-      });
-      activeJobRef.current = job.jobId;
-      setActiveJobId(job.jobId);
-      let completed = await engineRef.current.getDownloadProgress(job.jobId);
-      while (!['completed', 'cancelled', 'error'].includes(completed.state)) {
-        if (Number.isFinite(completed.percent)) setDownloadProgress(completed.percent);
-        await new Promise(resolveDelay => setTimeout(resolveDelay, document.hidden ? 2000 : 750));
-        completed = await engineRef.current.getDownloadProgress(job.jobId);
+      const sourceUrls = [...new Set([mediaInfo.sourceUrl || resolvedInput.url, ...(mediaInfo.fallbackSourceUrls || [])])].slice(0, 3);
+      let completed = null;
+      let lastError = null;
+      for (let sourceIndex = 0; sourceIndex < sourceUrls.length; sourceIndex += 1) {
+        try {
+          const job = await engineRef.current.downloadMedia({
+            url: sourceUrls[sourceIndex],
+            mode,
+            title: mediaInfo.title
+          });
+          activeJobRef.current = job.jobId;
+          setActiveJobId(job.jobId);
+          completed = await engineRef.current.getDownloadProgress(job.jobId);
+          while (!['completed', 'cancelled', 'error'].includes(completed.state)) {
+            if (Number.isFinite(completed.percent)) setDownloadProgress(completed.percent);
+            await new Promise(resolveDelay => setTimeout(resolveDelay, document.hidden ? 2000 : 750));
+            completed = await engineRef.current.getDownloadProgress(job.jobId);
+          }
+          if (completed.state === 'cancelled') throw Object.assign(new Error('Download cancelled.'), {
+            code: 'CANCELLED'
+          });
+          if (completed.state === 'error') throw Object.assign(new Error(completed.errorMessage || 'Download failed.'), {
+            code: completed.errorCode || 'DOWNLOAD_FAILED'
+          });
+          lastError = null;
+          break;
+        } catch (attemptError) {
+          lastError = attemptError;
+          const retryable = ['SOURCE_UNAVAILABLE', 'SOURCE_REJECTED', 'DOWNLOAD_FAILED'].includes(attemptError.code);
+          if (!retryable || sourceIndex === sourceUrls.length - 1) throw attemptError;
+          setDownloadProgress(12);
+        }
       }
-      if (completed.state === 'cancelled') throw Object.assign(new Error('Download cancelled.'), {
-        code: 'CANCELLED'
-      });
-      if (completed.state === 'error') {
-        throw Object.assign(new Error(completed.errorMessage || 'Download failed.'), {
-          code: completed.errorCode || 'DOWNLOAD_FAILED'
-        });
-      }
+      if (lastError || !completed) throw lastError || new Error('Download failed.');
       setDownloadProgress(100);
       saveToLocalHistory({
         id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
@@ -574,7 +588,8 @@ const SavewaveApp = () => {
       });
       showAlert(`${completed.filename || mediaInfo.title} was saved to your Downloads folder.`, 'DOWNLOAD COMPLETE');
     } catch (error) {
-      const message = error.name === 'AbortError' ? 'Download preparation took too long. Please retry.' : error.message || 'Could not prepare this download.';
+      const normalized = window.SavewaveCore.normalizeError(error);
+      const message = error.name === 'AbortError' ? 'Download preparation took too long. Please retry.' : error.message && error.message !== error.code ? error.message : normalized.message;
       showAlert(message, 'DOWNLOAD ERROR');
     } finally {
       activeJobRef.current = null;
@@ -902,7 +917,9 @@ const SavewaveApp = () => {
     alt: "Savewave Logo"
   }), /*#__PURE__*/React.createElement("span", {
     className: "font-bold text-white tracking-widest text-sm"
-  }, "SAVEWAVE")), /*#__PURE__*/React.createElement("div", {
+  }, "SAVEWAVE ", /*#__PURE__*/React.createElement("span", {
+    className: "text-zinc-500 font-normal"
+  }, "v", appVersion))), /*#__PURE__*/React.createElement("div", {
     className: "flex items-center gap-6 text-[11px] text-zinc-400"
   }, /*#__PURE__*/React.createElement("button", {
     onClick: () => navigateToTab('downloader'),

@@ -7,5 +7,8 @@ commands.allow = [
   "plugin:savewave-media|resolveMedia",
   "plugin:savewave-media|downloadMedia",
   "plugin:savewave-media|cancelDownload",
-  "plugin:savewave-media|getDownloadProgress"
+  "plugin:savewave-media|getDownloadProgress",
+  "plugin:savewave-media|getSpotifyMetadata",
+  "plugin:savewave-media|searchSpotifyCandidates",
+  "plugin:savewave-media|searchYoutubeMusic"
 ]

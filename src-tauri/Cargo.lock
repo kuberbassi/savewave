@@ -2994,7 +2994,7 @@ dependencies = [
 
 [[package]]
 name = "savewave"
-version = "1.0.8"
+version = "1.0.9"
 dependencies = [
  "regex",
  "reqwest 0.12.28",

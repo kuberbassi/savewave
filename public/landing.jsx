@@ -1,4 +1,4 @@
-const { platforms: PLATFORMS, releasesUrl: RELEASE_PAGE, tickerItems: TICKER_ITEMS } = window.SavewaveConfig;
+const { version: BUNDLED_VERSION, platforms: PLATFORMS, releasesUrl: RELEASE_PAGE, tickerItems: TICKER_ITEMS } = window.SavewaveConfig;
 
 const OfficialIcon = ({ name }) => {
   const props = { className: `landing-official-icon icon-${name.toLowerCase()}`, viewBox: '0 0 24 24', fill: 'currentColor', 'aria-hidden': true };
@@ -20,11 +20,14 @@ const DownloadButton = ({ href, label, detail, primary = false, disabled = false
 
 const LandingPage = () => {
   const [windowsUrl, setWindowsUrl] = React.useState(RELEASE_PAGE);
-  const androidUrl = 'https://github.com/kuberbassi/savewave/releases/download/v1.0.8/Savewave-android-arm64.apk';
+  const [androidUrl, setAndroidUrl] = React.useState(RELEASE_PAGE);
+  const [appVersion, setAppVersion] = React.useState(BUNDLED_VERSION);
   React.useEffect(() => {
     fetch('/client-version.json', { cache: 'no-store' }).then((response) => response.ok ? response.json() : Promise.reject()).then((release) => {
       const downloadUrl = release.windowsDownloadUrl || release.downloadUrl;
       if (typeof downloadUrl === 'string' && downloadUrl.startsWith('https://github.com/')) setWindowsUrl(downloadUrl);
+      if (typeof release.androidDownloadUrl === 'string' && release.androidDownloadUrl.startsWith('https://github.com/')) setAndroidUrl(release.androidDownloadUrl);
+      if (/^\d+\.\d+\.\d+$/.test(release.version)) setAppVersion(release.version);
     }).catch(() => { });
   }, []);
   return (
@@ -97,7 +100,7 @@ const LandingPage = () => {
       </main>
 
       <footer className="relative z-10 bg-[#08080a] border-t border-white/10 px-6 py-8 text-center font-mono text-xs text-zinc-400">
-        © 2026 SAVEWAVE · LOCAL PROCESSING · ZERO DATABASE · <a className="text-white hover:opacity-80 transition-opacity" href="https://github.com/kuberbassi/savewave">GITHUB</a> · <a className="text-white hover:opacity-80 transition-opacity" href="https://kuberbassi.com">KUBERBASSI.COM</a>
+        © 2026 SAVEWAVE · VERSION {appVersion} · LOCAL PROCESSING · ZERO DATABASE · <a className="text-white hover:opacity-80 transition-opacity" href="https://github.com/kuberbassi/savewave">GITHUB</a> · <a className="text-white hover:opacity-80 transition-opacity" href="https://kuberbassi.com">KUBERBASSI.COM</a>
       </footer>
     </div>
   );

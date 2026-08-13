@@ -9,7 +9,7 @@ export class WebMediaEngine implements MediaEngine {
   private jobs = new Map<string, DownloadProgress>();
   getPlatform() { return 'web' as const; }
   async getCapabilities() { return capabilitiesFor('web'); }
-  async getEngineStatus() { return { available: true, version: '1.0.8' }; }
+  async getEngineStatus() { return { available: true, version: '1.0.9' }; }
   async getReleaseInfo() { return null; }
   async resolveMedia(value: string, mode: MediaMode = 'video'): Promise<ResolvedMedia> {
     const url = normalizeUrl(value); if (!url) throw new MediaEngineError('INVALID_URL');

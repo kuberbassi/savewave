@@ -57,4 +57,6 @@ pub struct DownloadProgress {
     pub speed: Option<f64>,
     pub eta: Option<f64>,
     pub filename: Option<String>,
+    pub error_code: Option<String>,
+    pub error_message: Option<String>,
 }

@@ -13,6 +13,7 @@ export interface ResolvedMedia {
   type: MediaMode | 'image';
   qualityLabel: string;
   sourceUrl: string;
+  fallbackSourceUrls?: string[];
 }
 
 export interface DownloadRequest { url: string; mode: MediaMode; title?: string; }

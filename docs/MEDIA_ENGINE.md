@@ -23,11 +23,13 @@ Private, deleted, region-blocked, login-gated, cookie-only, paid, or DRM-protect
 
 ## Spotify Smart Match
 
-The matcher searches multiple artist/title query shapes and scores title identity, credited artists, duration, album/ISRC where available, source authority, and version markers. Unexpected remix, live, cover, karaoke, instrumental, slowed, sped-up, nightcore, reaction, and tutorial candidates receive strong penalties.
+The matcher uses one shared JavaScript implementation on Web, Desktop, and Android. It searches structured YouTube Music songs first using all credited artists and the exact Spotify title, retries bounded transient failures, then tries a primary-artist song query, YouTube Music videos, and one bounded generic YouTube fallback. The selected URL is handed to the existing yt-dlp audio pipeline.
 
-Raw scores are internal ranking values and are not percentages. The UI reports only `Verified high-confidence match`. Insufficient or ambiguous evidence returns `Could not confidently match this Spotify track.`
+Candidates are normalized into title, ordered artists, album, duration, explicit state, result type, and video ID. Incompatible versions, explicit/clean conflicts, large duration differences, weak titles, and missing artist identity are rejected before ranking. Remaining candidates use four bounded identity signals: title, artists, duration, and album. Missing optional metadata is neutral rather than positive evidence.
 
-Android performs the same conservative workflow without a Spotify API key or account: public oEmbed metadata identifies the track and artist, three bounded YouTube query shapes produce deduplicated candidates, and title, credited artist, source authority, and unexpected-version markers determine acceptance. It intentionally rejects an uncertain result instead of returning a random song.
+Structured song identity and an exact ISRC, when publicly available, are strong evidence. Verification or an artist-owned channel is only a tie-breaker and cannot override a wrong title, artist, duration, or recording version. Views and popularity are not identity evidence. Insufficient or ambiguous evidence returns `Could not confidently match this Spotify track.`
+
+No Spotify account, API secret, Python process, remote Savewave service, or direct Spotify audio is used. Desktop Rust and the Android plugin provide only HTTP/yt-dlp transport; candidate parsing, ranking, and acceptance remain in shared JavaScript.
 
 The checked-in playlist benchmark can be run without downloading media:
 

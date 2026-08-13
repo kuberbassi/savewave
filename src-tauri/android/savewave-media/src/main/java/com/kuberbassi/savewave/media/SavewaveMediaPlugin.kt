@@ -23,6 +23,7 @@ import java.io.File
 import java.net.HttpURLConnection
 import java.net.InetAddress
 import java.net.URI
+import java.net.URLEncoder
 import java.text.Normalizer
 import java.time.LocalDate
 import java.time.temporal.ChronoUnit
@@ -80,11 +81,50 @@ class SavewaveMediaPlugin(private val activity: Activity) : Plugin(activity) {
     @Command fun getEngineStatus(invoke: Invoke) = invoke.resolve(JSObject().apply {
         put("available", engineAvailable)
         put("initializing", engineInitializing)
-        put("version", "1.0.8")
+        put("version", "1.0.9")
         put("engineVersion", engineVersion ?: "bundled")
         put("updateAvailable", false)
         engineError?.let { put("error", it) }
     })
+
+    @Command fun getSpotifyMetadata(invoke: Invoke) {
+        executor.execute {
+            try {
+                val track = spotifyMetadata(validatedUrl(invoke.getArgs().getString("url")))
+                Log.i(TAG, "Spotify metadata ready: title=${track.title}, artists=${track.artists.size}, duration=${track.duration}")
+                invoke.resolve(JSObject().apply {
+                    put("title", track.title); put("primaryArtist", track.artist); put("artists", JSONArray(track.artists))
+                    put("album", ""); put("duration", track.duration); put("thumbnail", track.thumbnail)
+                })
+            } catch (error: Exception) { Log.e(TAG, "Spotify metadata failed", error); invoke.reject("SOURCE_UNAVAILABLE", error.message ?: "Spotify metadata is unavailable") }
+        }
+    }
+
+    @Command fun searchSpotifyCandidates(invoke: Invoke) {
+        executor.execute {
+            try {
+                val candidates = searchYoutube(invoke.getArgs().getString("query"))
+                val results = JSONArray(candidates.map { candidate -> JSONObject().apply {
+                    put("videoId", candidate.id); put("title", candidate.title); put("artists", JSONArray(listOf(candidate.artist, candidate.uploader).filter(String::isNotBlank)))
+                    put("artist", candidate.artist); put("uploader", candidate.uploader); put("duration", candidate.duration); put("verified", candidate.verified)
+                    put("resultType", "generic-video"); put("url", "https://www.youtube.com/watch?v=${candidate.id}"); put("sourceUrl", "https://www.youtube.com/watch?v=${candidate.id}")
+                } })
+                invoke.resolve(JSObject().apply { put("results", results) })
+            } catch (error: Exception) { invoke.reject("SOURCE_UNAVAILABLE", error.message ?: "YouTube search is unavailable") }
+        }
+    }
+
+    @Command fun searchYoutubeMusic(invoke: Invoke) {
+        executor.execute {
+            val filter = invoke.getArgs().getString("filter")
+            try {
+                val payload = youtubeMusicSearch(invoke.getArgs().getString("query"), filter)
+                Log.i(TAG, "YouTube Music search ready: filter=$filter, bytes=${payload.toString().length}")
+                invoke.resolve(JSObject().apply { put("payload", payload) })
+            }
+            catch (error: Exception) { Log.e(TAG, "YouTube Music search failed: filter=$filter", error); invoke.reject("SOURCE_UNAVAILABLE", error.message ?: "YouTube Music search is unavailable") }
+        }
+    }
 
     @Command fun resolveMedia(invoke: Invoke) {
         executor.execute {
@@ -93,10 +133,6 @@ class SavewaveMediaPlugin(private val activity: Activity) : Plugin(activity) {
                 val url = validatedUrl(request.getString("url"))
                 validateRemoteHost(url)
                 requireEngine()
-                if (isSpotifyTrack(url)) {
-                    invoke.resolve(resolveSpotify(url))
-                    return@execute
-                }
                 if (isInstagramUrl(url)) {
                     resolveInstagramGallery(url)?.let { gallery ->
                         invoke.resolve(JSObject().apply {
@@ -154,6 +190,8 @@ class SavewaveMediaPlugin(private val activity: Activity) : Plugin(activity) {
                 val output = File(directory, "%(title).140B.%(ext)s").absolutePath
                 val ytdlp = YoutubeDLRequest(url).apply {
                     addOption("--no-playlist"); addOption("--newline"); addOption("-o", output)
+                    addOption("--socket-timeout", 20); addOption("--retries", 5); addOption("--fragment-retries", 5)
+                    addOption("--extractor-retries", 3); addOption("--file-access-retries", 3); addOption("--retry-sleep", 1)
                     if (mode == "audio") { addOption("-f", "bestaudio/best"); addOption("--extract-audio"); addOption("--audio-format", "best") }
                     else { addOption("-f", "bestvideo*+bestaudio/best"); addOption("--merge-output-format", "mp4/mkv") }
                 }
@@ -327,11 +365,6 @@ class SavewaveMediaPlugin(private val activity: Activity) : Plugin(activity) {
     private data class SearchCandidate(val id: String, val title: String, val artist: String, val uploader: String, val duration: Double?, val verified: Boolean)
     private data class InstagramGallery(val title: String, val creator: String, val images: List<String>)
 
-    private fun isSpotifyTrack(url: String): Boolean {
-        val uri = try { URI(url) } catch (_: Exception) { return false }
-        return uri.host?.lowercase() == "open.spotify.com" && Regex("^/track/[A-Za-z0-9]{22}/?$").matches(uri.path ?: "")
-    }
-
     private fun isInstagramUrl(url: String): Boolean = try {
         val host = URI(url).host?.lowercase() ?: ""
         host == "instagram.com" || host.endsWith(".instagram.com")
@@ -359,7 +392,7 @@ class SavewaveMediaPlugin(private val activity: Activity) : Plugin(activity) {
     private fun fetchText(url: String): String {
         val connection = URI(url).toURL().openConnection() as HttpURLConnection
         connection.connectTimeout = 12_000; connection.readTimeout = 20_000
-        connection.setRequestProperty("User-Agent", "Mozilla/5.0")
+        connection.setRequestProperty("User-Agent", "Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 Chrome/131 Mobile Safari/537.36")
         try {
             if (connection.responseCode !in 200..299) error("Public Instagram media is unavailable")
             return connection.inputStream.bufferedReader().use { it.readText() }
@@ -401,37 +434,29 @@ class SavewaveMediaPlugin(private val activity: Activity) : Plugin(activity) {
     private fun safeStem(value: String): String = value.replace(Regex("""[<>:"/\\|?*\x00-\x1F]"""), " ")
         .replace(Regex("\\s+"), " ").trim().trimEnd('.', ' ').take(120).ifBlank { "Instagram post" }
 
-    private fun resolveSpotify(url: String): JSObject {
-        val track = spotifyMetadata(url)
-        val candidates = linkedMapOf<String, SearchCandidate>()
-        val queries = listOf(
-            "${track.artist} Topic ${track.title}",
-            "${track.artist} ${track.title} official audio",
-            "${track.artist} ${track.title} topic",
-            "${track.title} ${track.artist}"
-        )
-        var earlyMatch: Pair<SearchCandidate, Int>? = null
-        for (query in queries) {
-            searchYoutube(query).forEach { candidates.putIfAbsent(it.id, it) }
-            val rankedSoFar = candidates.values.map { it to scoreSpotify(track, it) }.sortedByDescending { it.second }
-            val leader = rankedSoFar.firstOrNull()
-                val alternatives = rankedSoFar.drop(1)
-            if (leader != null && leader.second >= 80) {
-                val authoritative = isTrustedCandidate(track, leader.first)
-                val corroborated = alternatives.any { corroboratesSameRecording(track, leader.first, it.first) }
-                if (authoritative || corroborated) { earlyMatch = leader; break }
-            }
+    private fun youtubeMusicSearch(query: String, filter: String): JSONObject {
+        val params = when (filter) {
+            "songs" -> "EgWKAQIIAWoKEAkQBRAKEAMQBA=="
+            "videos" -> "EgWKAQIQAWoKEAkQChAFEAMQBA=="
+            else -> error("Invalid YouTube Music filter")
         }
-        val ranked = candidates.values.map { it to scoreSpotify(track, it) }.sortedByDescending { it.second }
-        val best = earlyMatch ?: ranked.firstOrNull() ?: error("No matching public audio was found")
-        val authoritative = isTrustedCandidate(track, best.first)
-        val corroborated = ranked.drop(1).any { corroboratesSameRecording(track, best.first, it.first) }
-        if ((!authoritative || best.second < 70) && (best.second < 80 || !corroborated)) error("Could not confidently match this Spotify track")
-        return JSObject().apply {
-            put("success", true); put("platform", "spotify"); put("title", track.title); put("creator", track.artists.joinToString(", "))
-            put("thumbnail", track.thumbnail); put("type", "audio"); put("qualityLabel", "Verified high-confidence match")
-            put("sourceUrl", "https://www.youtube.com/watch?v=${best.first.id}")
-        }
+        val home = fetchText("https://music.youtube.com/").replace("\\\"", "\"")
+        val apiKey = Regex(""""INNERTUBE_API_KEY":"([^"]+)"""").find(home)?.groupValues?.get(1) ?: error("YouTube Music session is unavailable")
+        val clientVersion = Regex(""""INNERTUBE_CLIENT_VERSION":"([^"]+)"""").find(home)?.groupValues?.get(1) ?: error("YouTube Music session is unavailable")
+        val endpoint = "https://music.youtube.com/youtubei/v1/search?key=${URLEncoder.encode(apiKey, Charsets.UTF_8.name())}&prettyPrint=false"
+        val connection = URI(endpoint).toURL().openConnection() as HttpURLConnection
+        connection.requestMethod = "POST"; connection.doOutput = true; connection.connectTimeout = 8_000; connection.readTimeout = 8_000
+        connection.setRequestProperty("Content-Type", "application/json"); connection.setRequestProperty("Origin", "https://music.youtube.com")
+        connection.setRequestProperty("User-Agent", "Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 Chrome/131 Mobile Safari/537.36")
+        val body = JSONObject().apply {
+            put("context", JSONObject().put("client", JSONObject().put("clientName", "WEB_REMIX").put("clientVersion", clientVersion).put("hl", "en")))
+            put("query", query); put("params", params)
+        }.toString()
+        try {
+            connection.outputStream.use { it.write(body.toByteArray(Charsets.UTF_8)) }
+            if (connection.responseCode !in 200..299) error("YouTube Music search failed")
+            return JSONObject(connection.inputStream.bufferedReader().use { it.readText() })
+        } finally { connection.disconnect() }
     }
 
     private fun spotifyMetadata(url: String): SpotifyTrack {

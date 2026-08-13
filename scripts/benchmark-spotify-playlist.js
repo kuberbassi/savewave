@@ -1,10 +1,15 @@
 'use strict';
 const fs = require('node:fs');
-const { resolveSpotifySmartMatch } = require('../src/services/resolver/smartMatch/spotifyMatcher');
+const { createSearchAdapter } = require('../src/services/resolver/smartMatch/spotifyMatcher');
+const { getSpotifyMetadata } = require('../src/services/resolver/smartMatch/spotifyMetadata');
+const { evaluateCandidate } = require('../src/core/spotify/matcher');
+const { resolveSpotifySource } = require('../src/core/spotify/search-runtime');
 
 const playlistId = process.argv[2] || '7AQKdFWAEiQ6BFuQ6w7hx8';
 const idsFileIndex = process.argv.indexOf('--ids-file');
 const idsFile = idsFileIndex >= 0 ? process.argv[idsFileIndex + 1] : null;
+const outputIndex = process.argv.indexOf('--output');
+const outputFile = outputIndex >= 0 ? process.argv[outputIndex + 1] : null;
 const concurrency = Math.max(1, Math.min(6, Number(process.env.SPOTIFY_BENCHMARK_CONCURRENCY) || 4));
 
 async function publicTrackIds() {
@@ -30,11 +35,40 @@ async function main() {
       const index = cursor++;
       const id = ids[index];
       const started = Date.now();
+      let metadata = null;
+      const attemptedCandidates = [];
       try {
-        const media = await resolveSpotifySmartMatch(`https://open.spotify.com/track/${id}`);
-        results[index] = { id, ok: true, title: media.title, creator: media.creator, source: media.download.directUrl, milliseconds: Date.now() - started };
+        metadata = await getSpotifyMetadata(`https://open.spotify.com/track/${id}`);
+        const baseAdapter = createSearchAdapter();
+        const match = await resolveSpotifySource(metadata, { search: async (stage, track) => {
+          const candidates = await baseAdapter.search(stage, track);
+          attemptedCandidates.push(...candidates.map((candidate) => ({ ...candidate, searchStage: stage.name })));
+          return candidates;
+        } });
+        if (!match) throw new Error('Could not confidently match this Spotify track.');
+        const roundTrip = evaluateCandidate(JSON.parse(JSON.stringify(metadata)), JSON.parse(JSON.stringify(match.candidate)));
+        const source = match.candidate.url || match.candidate.sourceUrl;
+        results[index] = {
+          position: index + 1, id, ok: true, title: metadata.title, creator: metadata.artist,
+          spotifyDuration: metadata.duration, source, videoId: match.candidate.videoId || match.candidate.id,
+          resultType: match.candidate.resultType, searchStage: match.candidate.searchStage,
+          score: match.score, confidence: match.confidence, evidence: match.evidence,
+          desktopAndroidIdentical: roundTrip.accepted && roundTrip.score === match.score,
+          milliseconds: Date.now() - started
+        };
       } catch (error) {
-        results[index] = { id, ok: false, error: String(error.message || error), milliseconds: Date.now() - started };
+        const diagnostics = metadata ? attemptedCandidates.map((candidate) => evaluateCandidate(metadata, candidate))
+          .sort((a, b) => b.score - a.score).map((result) => ({
+            videoId: result.candidate.videoId || result.candidate.id, title: result.candidate.title,
+            artists: result.candidate.artists, resultType: result.candidate.resultType,
+            searchStage: result.candidate.searchStage, score: result.score,
+            accepted: result.accepted, rejectionReasons: result.rejectionReasons, evidence: result.evidence
+          })) : [];
+        results[index] = {
+          position: index + 1, id, ok: false, title: metadata?.title, creator: metadata?.artist,
+          spotifyDuration: metadata?.duration, error: String(error.message || error),
+          candidateDiagnostics: diagnostics, milliseconds: Date.now() - started
+        };
       }
       const passed = results.filter((result) => result?.ok).length;
       process.stdout.write(`\rSpotify benchmark ${index + 1}/${ids.length} · matched ${passed}`);
@@ -44,7 +78,17 @@ async function main() {
   const passed = results.filter((result) => result.ok);
   const failed = results.filter((result) => !result.ok);
   process.stdout.write('\n');
-  const summary = { playlistId, idsFile, tested: results.length, matched: passed.length, failed: failed.length, matchRate: Number((passed.length / results.length * 100).toFixed(1)), failures: failed };
+  const timings = results.map((result) => result.milliseconds).sort((a, b) => a - b);
+  const summary = {
+    playlistId, idsFile, tested: results.length, matched: passed.length, failed: failed.length,
+    matchRate: Number((passed.length / results.length * 100).toFixed(1)),
+    desktopAndroidIdentical: passed.every((result) => result.desktopAndroidIdentical),
+    averageMilliseconds: Math.round(timings.reduce((sum, value) => sum + value, 0) / Math.max(1, timings.length)),
+    p95Milliseconds: timings[Math.min(timings.length - 1, Math.floor(timings.length * 0.95))] || 0,
+    failures: failed
+  };
+  const report = { generatedAt: new Date().toISOString(), summary, tracks: results };
+  if (outputFile) fs.writeFileSync(outputFile, `${JSON.stringify(report, null, 2)}\n`);
   console.log(JSON.stringify(summary, null, process.env.SPOTIFY_BENCHMARK_COMPACT === '1' ? 0 : 2));
 }
 

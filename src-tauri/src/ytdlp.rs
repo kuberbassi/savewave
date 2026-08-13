@@ -50,6 +50,7 @@ pub fn download_args(
     output_dir: &str,
     temp_dir: &str,
     template: &str,
+    ffmpeg_location: &str,
 ) -> Result<Vec<String>, String> {
     validate_url(url)?;
     let temp_path = format!("temp:{temp_dir}");
@@ -68,9 +69,15 @@ pub fn download_args(
         "--socket-timeout".into(),
         "15".into(),
         "--retries".into(),
-        "3".into(),
+        "5".into(),
         "--fragment-retries".into(),
+        "5".into(),
+        "--extractor-retries".into(),
         "3".into(),
+        "--file-access-retries".into(),
+        "3".into(),
+        "--retry-sleep".into(),
+        "1".into(),
         "--js-runtimes".into(),
         "node".into(),
         "--remote-components".into(),
@@ -82,6 +89,10 @@ pub fn download_args(
         temp_path,
         "-o".into(),
         template.into(),
+        "--ffmpeg-location".into(),
+        ffmpeg_location.into(),
+        "--print".into(),
+        "after_move:savewave-file:%(filepath)s".into(),
     ];
     if mode == "audio" {
         // Select the actual best source audio, then extract/remux it into its
@@ -118,6 +129,7 @@ mod tests {
             "C:/Downloads",
             "C:/Temp/job",
             "%(title)s.%(ext)s",
+            "/opt/ffmpeg",
         )
         .unwrap();
         assert_eq!(args.last().unwrap(), "https://example.com/a?v=1&x=2");
@@ -130,6 +142,7 @@ mod tests {
             "/tmp",
             "/tmp/job",
             "%(title)s.%(ext)s",
+            "/opt/ffmpeg",
         )
         .unwrap();
         assert!(args.contains(&"bestaudio/best".into()));
@@ -137,6 +150,10 @@ mod tests {
             .windows(2)
             .any(|pair| pair == ["--audio-format", "best"]));
         assert!(!args.iter().any(|arg| arg == "mp3"));
+        assert!(args
+            .windows(2)
+            .any(|pair| pair == ["--ffmpeg-location", "/opt/ffmpeg"]));
+        assert!(args.windows(2).any(|pair| pair == ["--retries", "5"]));
     }
     #[test]
     fn video_uses_best_streams_with_lossless_container_fallback() {
@@ -146,6 +163,7 @@ mod tests {
             "/tmp",
             "/tmp/job",
             "%(title)s.%(ext)s",
+            "/opt/ffmpeg",
         )
         .unwrap();
         assert!(args.contains(&"bestvideo*+bestaudio/best".into()));
@@ -161,6 +179,7 @@ mod tests {
             "/tmp",
             "/tmp/job",
             "%(title)s.%(ext)s",
+            "/opt/ffmpeg",
         )
         .unwrap();
         assert!(social.contains(&"--yes-playlist".into()));

@@ -10,5 +10,7 @@ export * from './platform/index';
 export * from './platform/external';
 export * from './spotify/normalize';
 export * from './spotify/score';
+export * from './spotify/search';
+export * from './spotify/youtubeMusic';
 export * from './history/types';
 export * from './history/webHistory';

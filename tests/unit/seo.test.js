@@ -50,9 +50,11 @@ describe('Production SEO & Discovery Configuration', () => {
     const release = JSON.parse(fs.readFileSync(path.join(__dirname, '../../public/client-version.json'), 'utf-8'));
     const pkg = JSON.parse(fs.readFileSync(path.join(__dirname, '../../package.json'), 'utf-8'));
     const tauri = JSON.parse(fs.readFileSync(path.join(__dirname, '../../src-tauri/tauri.conf.json'), 'utf-8'));
+    const config = fs.readFileSync(path.join(__dirname, '../../public/config.js'), 'utf-8');
     expect(release.version).toMatch(/^\d+\.\d+\.\d+$/);
     expect(release.version).toBe(pkg.version);
     expect(release.version).toBe(tauri.version);
+    expect(config).toContain(`version: '${release.version}'`);
     for (const key of ['downloadUrl', 'windowsDownloadUrl', 'androidDownloadUrl', 'releaseUrl', 'changelogUrl']) expect(new URL(release[key]).protocol).toBe('https:');
     expect(release.androidDownloadUrl).toContain(`/download/v${release.version}/Savewave-android-arm64.apk`);
     expect(release.downloadUrl).toBe(`https://github.com/kuberbassi/savewave/releases/tag/v${release.version}`);

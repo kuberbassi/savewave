@@ -32,6 +32,7 @@ pub fn run() {
             commands::get_release_info,
             commands::get_spotify_metadata,
             commands::search_spotify_candidates,
+            commands::search_youtube_music,
             commands::resolve_media,
             commands::download_media,
             commands::get_download_progress,

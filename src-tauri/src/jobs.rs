@@ -74,6 +74,8 @@ mod tests {
             speed: None,
             eta: None,
             filename: None,
+            error_code: None,
+            error_message: None,
         }
     }
     #[test]
