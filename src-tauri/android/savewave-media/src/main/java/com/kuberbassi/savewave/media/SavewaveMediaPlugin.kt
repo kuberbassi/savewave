@@ -81,7 +81,7 @@ class SavewaveMediaPlugin(private val activity: Activity) : Plugin(activity) {
     @Command fun getEngineStatus(invoke: Invoke) = invoke.resolve(JSObject().apply {
         put("available", engineAvailable)
         put("initializing", engineInitializing)
-        put("version", "1.0.9")
+        put("version", "1.0.10")
         put("engineVersion", engineVersion ?: "bundled")
         put("updateAvailable", false)
         engineError?.let { put("error", it) }
@@ -193,7 +193,7 @@ class SavewaveMediaPlugin(private val activity: Activity) : Plugin(activity) {
                     addOption("--socket-timeout", 20); addOption("--retries", 5); addOption("--fragment-retries", 5)
                     addOption("--extractor-retries", 3); addOption("--file-access-retries", 3); addOption("--retry-sleep", 1)
                     if (mode == "audio") { addOption("-f", "bestaudio/best"); addOption("--extract-audio"); addOption("--audio-format", "best") }
-                    else { addOption("-f", "bestvideo*+bestaudio/best"); addOption("--merge-output-format", "mp4/mkv") }
+                    else { addOption("-f", "bestvideo+bestaudio/best"); addOption("--merge-output-format", "mp4/mkv") }
                 }
                 val response = executeExtractor(ytdlp, jobId) { percent: Float, eta: Long, _: String ->
                     if (jobs[jobId]?.optString("state") != "cancelled") {

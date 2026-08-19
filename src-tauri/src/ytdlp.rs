@@ -109,7 +109,11 @@ pub fn download_args(
         // codecs are compatible, with MKV as a lossless container fallback.
         args.extend([
             "-f".into(),
-            "bestvideo*+bestaudio/best".into(),
+            // Prefer separate direct video/audio streams. `bestvideo*` also
+            // accepts combined HLS formats, which can outrank the direct
+            // streams and then fail part-way through with HTTP fragment
+            // errors even though reliable DASH streams are available.
+            "bestvideo+bestaudio/best".into(),
             "--merge-output-format".into(),
             "mp4/mkv".into(),
         ]);
@@ -166,7 +170,7 @@ mod tests {
             "/opt/ffmpeg",
         )
         .unwrap();
-        assert!(args.contains(&"bestvideo*+bestaudio/best".into()));
+        assert!(args.contains(&"bestvideo+bestaudio/best".into()));
         assert!(args
             .windows(2)
             .any(|pair| pair == ["--merge-output-format", "mp4/mkv"]));

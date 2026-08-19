@@ -2,7 +2,7 @@ import { automaticFormatArguments, canTransition, capabilitiesFor, confidentMatc
 describe('shared Savewave core', () => {
   it('detects supported sources and rejects non-http or lookalike domains', () => { expect(detectSource('https://youtu.be/abc')).toBe('youtube'); expect(detectSource('https://cdn.test/file.mp4')).toBe('direct'); expect(detectSource('file:///secret.mp4')).toBe('unknown'); expect(detectSource('https://evilinstagram.com/p/example')).toBe('unknown'); });
   it('reports honest web/native capabilities', () => { expect(supports(capabilitiesFor('web'), 'youtube', 'video')).toBe(false); expect(supports(capabilitiesFor('web'), 'direct', 'video')).toBe(true); expect(supports(capabilitiesFor('android'), 'spotify', 'audio')).toBe(true); });
-  it('keeps automatic formats simple', () => { expect(automaticFormatArguments('audio')).toContain('bestaudio/best'); expect(automaticFormatArguments('video')).toContain('bestvideo*+bestaudio/best'); });
+  it('keeps automatic formats simple', () => { expect(automaticFormatArguments('audio')).toContain('bestaudio/best'); expect(automaticFormatArguments('video')).toContain('bestvideo+bestaudio/best'); });
   it('sanitizes shared filenames', () => { expect(mediaFilename('Artist', 'Song: Live?', 'm4a')).toBe('Artist - Song Live.m4a'); expect(sanitizeFilename('CON.mp4')).toBe('_CON.mp4'); });
   it('enforces state transitions', () => { expect(canTransition('resolved', 'downloading')).toBe(true); expect(canTransition('idle', 'completed')).toBe(false); });
   it('normalizes unknown errors without leaking details', () => { expect(normalizeError(new Error('raw internal trace')).message).toBe('Download failed.'); });

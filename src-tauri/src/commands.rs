@@ -506,8 +506,27 @@ fn classify_download_error(stderr: &str) -> (&'static str, String) {
             "This source is private or login-gated. Try public media instead.".into(),
         );
     }
+    if lower.contains("http error 429") || lower.contains("too many requests") {
+        return (
+            "SOURCE_UNAVAILABLE",
+            "The source is temporarily rate-limiting downloads. Wait a few minutes and retry.".into(),
+        );
+    }
+    if lower.contains("http error 403") || lower.contains("forbidden") {
+        return (
+            "SOURCE_REJECTED",
+            "The source refused this download. Try another public link or retry later.".into(),
+        );
+    }
+    if lower.contains("http error 404") || lower.contains("not found") {
+        return (
+            "SOURCE_UNAVAILABLE",
+            "The source media is no longer available.".into(),
+        );
+    }
     if lower.contains("timed out")
-        || lower.contains("http error")
+        || lower.contains("connection reset")
+        || lower.contains("connection aborted")
         || lower.contains("unable to download")
     {
         return (
@@ -542,6 +561,18 @@ mod tests {
             classify_download_error("ERROR: Postprocessing: ffprobe and ffmpeg not found");
         assert_eq!(code, "ENGINE_UNAVAILABLE");
         assert!(message.contains("media processor"));
+    }
+    #[test]
+    fn distinguishes_provider_http_errors_from_connection_failures() {
+        let (code, message) = classify_download_error("ERROR: HTTP Error 403: Forbidden");
+        assert_eq!(code, "SOURCE_REJECTED");
+        assert!(message.contains("refused"));
+
+        let (_, message) = classify_download_error("ERROR: HTTP Error 429: Too Many Requests");
+        assert!(message.contains("rate-limiting"));
+
+        let (_, message) = classify_download_error("ERROR: connection reset by peer");
+        assert!(message.contains("connection"));
     }
     #[test]
     fn compares_release_versions_numerically() {

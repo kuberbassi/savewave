@@ -10,7 +10,7 @@
     { name: 'DIRECT', label: 'Direct Media', capability: 'MEDIA FILES', title: 'Direct public video, audio, and image links' }
   ];
   window.SavewaveConfig = Object.freeze({
-    version: '1.0.9',
+    version: '1.0.10',
     websiteUrl: 'https://savewave.kuberbassi.com/',
     repositoryUrl: 'https://github.com/kuberbassi/savewave',
     releasesUrl: 'https://github.com/kuberbassi/savewave/releases',
