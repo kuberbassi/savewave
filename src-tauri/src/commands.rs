@@ -509,7 +509,8 @@ fn classify_download_error(stderr: &str) -> (&'static str, String) {
     if lower.contains("http error 429") || lower.contains("too many requests") {
         return (
             "SOURCE_UNAVAILABLE",
-            "The source is temporarily rate-limiting downloads. Wait a few minutes and retry.".into(),
+            "The source is temporarily rate-limiting downloads. Wait a few minutes and retry."
+                .into(),
         );
     }
     if lower.contains("http error 403") || lower.contains("forbidden") {
