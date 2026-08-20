@@ -11,7 +11,7 @@ Use the same `MAJOR.MINOR.PATCH` value in:
 - `src-tauri/Cargo.toml`
 - the `savewave` package entry in `src-tauri/Cargo.lock`
 - `src-tauri/tauri.conf.json`
-- `src-tauri/gen/android/app/tauri.properties` (`versionName` and increasing `versionCode`)
+- generated `src-tauri/gen/android/app/tauri.properties` (`versionName` and increasing `versionCode`, checked when the local Android project has been initialized)
 - `src-tauri/android/savewave-media/src/main/java/com/kuberbassi/savewave/media/SavewaveMediaPlugin.kt`
 - `public/config.js` (the web/footer fallback)
 - `src/core/platform/android.ts`

@@ -15,12 +15,21 @@ function requireMatch(file, pattern, description) {
   if (!pattern.test(read(file))) failures.push(`${file}: ${description}`);
 }
 
+function requireMatchWhenPresent(file, pattern, description) {
+  const absolute = path.join(root, file);
+  if (fs.existsSync(absolute) && !pattern.test(fs.readFileSync(absolute, 'utf8'))) {
+    failures.push(`${file}: ${description}`);
+  }
+}
+
 requireMatch('package-lock.json', new RegExp(`"version": "${escaped}"`), 'root version differs');
 requireMatch('src-tauri/Cargo.toml', new RegExp(`^version = "${escaped}"$`, 'm'), 'package version differs');
 requireMatch('src-tauri/Cargo.lock', new RegExp(`name = "savewave"\\r?\\nversion = "${escaped}"`), 'Savewave package version differs');
 requireMatch('src-tauri/tauri.conf.json', new RegExp(`"version": "${escaped}"`), 'application version differs');
-requireMatch('src-tauri/gen/android/app/tauri.properties', new RegExp(`^tauri\\.android\\.versionName=${escaped}$`, 'm'), 'Android versionName differs');
-requireMatch('src-tauri/gen/android/app/tauri.properties', new RegExp(`^tauri\\.android\\.versionCode=${androidVersionCode}$`, 'm'), 'Android versionCode differs');
+// Tauri generates and git-ignores this file. Validate it in initialized Android
+// worktrees, but do not fail clean CI checkouts where it correctly does not exist.
+requireMatchWhenPresent('src-tauri/gen/android/app/tauri.properties', new RegExp(`^tauri\\.android\\.versionName=${escaped}$`, 'm'), 'Android versionName differs');
+requireMatchWhenPresent('src-tauri/gen/android/app/tauri.properties', new RegExp(`^tauri\\.android\\.versionCode=${androidVersionCode}$`, 'm'), 'Android versionCode differs');
 requireMatch('src-tauri/android/savewave-media/src/main/java/com/kuberbassi/savewave/media/SavewaveMediaPlugin.kt', new RegExp(`put\\("version", "${escaped}"\\)`), 'Android plugin version differs');
 requireMatch('public/config.js', new RegExp(`version: ['"]${escaped}['"]`), 'footer/config version differs');
 requireMatch('src/core/platform/android.ts', new RegExp(`CURRENT_VERSION = '${escaped}'`), 'Android client version differs');
