@@ -655,7 +655,7 @@ var SavewaveCore = (() => {
 
   // src/core/platform/android.ts
   var command = (name, payload = {}) => invoke(`plugin:savewave-media|${name}`, payload);
-  var CURRENT_VERSION = "1.0.10";
+  var CURRENT_VERSION = "1.0.11";
   var RELEASE_MANIFEST = "https://raw.githubusercontent.com/kuberbassi/savewave/main/public/client-version.json";
   var TRUSTED_RELEASE_HOSTS = /* @__PURE__ */ new Set(["github.com", "raw.githubusercontent.com", "savewave.kuberbassi.com"]);
   var isNewerVersion = (candidate, installed) => {
@@ -747,7 +747,7 @@ var SavewaveCore = (() => {
       return capabilitiesFor("web");
     }
     async getEngineStatus() {
-      return { available: true, version: "1.0.10" };
+      return { available: true, version: "1.0.11" };
     }
     async getReleaseInfo() {
       return null;

@@ -1,6 +1,6 @@
 [package]
 name = "savewave"
-version = "1.0.10"
+version = "1.0.11"
 description = "Savewave local media application"
 edition = "2021"
 

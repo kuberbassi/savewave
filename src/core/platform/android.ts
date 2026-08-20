@@ -6,7 +6,7 @@ import { resolveSpotifySource, type SearchStage } from '../spotify/search';
 import { parseYouTubeMusicResults } from '../spotify/youtubeMusic';
 import type { MatchCandidate, TrackIdentity } from '../spotify/score';
 const command = <T>(name: string, payload: Record<string, unknown> = {}) => invoke<T>(`plugin:savewave-media|${name}`, payload);
-const CURRENT_VERSION = '1.0.10';
+const CURRENT_VERSION = '1.0.11';
 const RELEASE_MANIFEST = 'https://raw.githubusercontent.com/kuberbassi/savewave/main/public/client-version.json';
 const TRUSTED_RELEASE_HOSTS = new Set(['github.com', 'raw.githubusercontent.com', 'savewave.kuberbassi.com']);
 

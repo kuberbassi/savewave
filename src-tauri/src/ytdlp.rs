@@ -33,6 +33,9 @@ pub fn resolve_args(url: &str) -> Result<Vec<String>, String> {
         "3",
         "--fragment-retries",
         "3",
+        "--force-ipv4",
+        "--extractor-args",
+        "youtube:player_client=default,-android_sdkless",
         "--js-runtimes",
         "node",
         "--remote-components",
@@ -78,6 +81,9 @@ pub fn download_args(
         "3".into(),
         "--retry-sleep".into(),
         "1".into(),
+        "--force-ipv4".into(),
+        "--extractor-args".into(),
+        "youtube:player_client=default,-android_sdkless".into(),
         "--js-runtimes".into(),
         "node".into(),
         "--remote-components".into(),
@@ -158,6 +164,12 @@ mod tests {
             .windows(2)
             .any(|pair| pair == ["--ffmpeg-location", "/opt/ffmpeg"]));
         assert!(args.windows(2).any(|pair| pair == ["--retries", "5"]));
+        assert!(args.iter().any(|arg| arg == "--force-ipv4"));
+        assert!(args.windows(2).any(|pair| pair
+            == [
+                "--extractor-args",
+                "youtube:player_client=default,-android_sdkless"
+            ]));
     }
     #[test]
     fn video_uses_best_streams_with_lossless_container_fallback() {
