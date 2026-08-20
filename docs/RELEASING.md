@@ -1,5 +1,7 @@
 # Release Guide
 
+Follow the complete [release checklist](RELEASE_CHECKLIST.md) for every version. It is the source of truth for version files, platform checks, artifacts, and post-publication verification.
+
 ## Required checks
 
 ```bash

@@ -1,5 +1,41 @@
 # Changelog
 
+## v1.0.11 - YouTube download compatibility
+
+### Fixed
+
+- Updated and pinned the desktop yt-dlp engine to `2026.08.19`.
+- Forced Android to refresh yt-dlp when its installed engine is older than the required release.
+- Avoided the problematic YouTube `android_sdkless` client on Windows and Android.
+- Added an IPv4 reliability fallback for media extraction and downloads.
+- Verified a real video-and-audio transfer against a public URL previously associated with HTTP 403 failures.
+
+### Downloads
+
+- `Savewave_1.0.11_x64-setup.exe` - Windows 10/11 64-bit installer.
+- `Savewave_1.0.11_x64-setup.exe.sha256` - installer checksum.
+- `Savewave-android-arm64.apk` - signed Android 10+ ARM64 in-place update.
+- `Savewave-android-arm64.apk.sha256` - Android installer checksum.
+
+[Full commit history](https://github.com/kuberbassi/savewave/commits/v1.0.11)
+
+## v1.0.10 - Download stream reliability
+
+### Fixed
+
+- Preferred separate direct video and audio streams instead of fragile combined HLS streams.
+- Distinguished HTTP 403, 404 and 429 source failures from genuine connection interruptions.
+- Applied the direct-stream preference consistently to Windows and Android.
+
+### Downloads
+
+- `Savewave_1.0.10_x64-setup.exe` - Windows 10/11 64-bit installer.
+- `Savewave_1.0.10_x64-setup.exe.sha256` - installer checksum.
+- `Savewave-android-arm64.apk` - signed Android 10+ ARM64 in-place update.
+- `Savewave-android-arm64.apk.sha256` - Android installer checksum.
+
+[Full commit history](https://github.com/kuberbassi/savewave/commits/v1.0.10)
+
 ## v1.0.9 — Smarter matching and more reliable downloads
 
 ### Spotify SmartMatch

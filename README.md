@@ -81,6 +81,7 @@ npm run tauri:build
 - ⚙️ [Media Engine Rules](docs/MEDIA_ENGINE.md) — Source detection and extraction policy
 - 🛠️ [Maintenance & Updates](docs/MAINTENANCE.md) — Tracking `yt-dlp` upstream updates
 - 🚀 [Release Process](docs/RELEASING.md) — Releasing desktop and mobile builds
+- ✅ [Release Checklist](docs/RELEASE_CHECKLIST.md) — Version files, platform tests, artifacts, and publication checks
 
 ---
 

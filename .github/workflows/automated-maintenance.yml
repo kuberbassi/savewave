@@ -1,0 +1,128 @@
+name: Automated Maintenance
+
+on:
+  schedule:
+    - cron: '30 0 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+
+concurrency:
+  group: automated-maintenance
+  cancel-in-progress: false
+
+jobs:
+  yt-dlp:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - name: Find latest stable yt-dlp
+        id: latest
+        shell: pwsh
+        run: |
+          $release = Invoke-RestMethod 'https://api.github.com/repos/yt-dlp/yt-dlp/releases/latest'
+          $version = $release.tag_name
+          if ($version -notmatch '^\d{4}\.\d{2}\.\d{2}$') { throw "Unexpected yt-dlp tag: $version" }
+          "version=$version" >> $env:GITHUB_OUTPUT
+
+      - name: Synchronize desktop and Android pins
+        run: node scripts/update-ytdlp-version.js "${{ steps.latest.outputs.version }}"
+
+      - name: Install dependencies
+        id: install
+        continue-on-error: true
+        run: npm ci
+
+      - name: Run project checks
+        id: checks
+        if: steps.install.outcome == 'success'
+        continue-on-error: true
+        run: npm run check
+
+      - name: Prepare and verify desktop sidecars
+        id: sidecars
+        if: steps.checks.outcome == 'success'
+        continue-on-error: true
+        run: npm run prepare:sidecars
+
+      - name: Perform real yt-dlp transfer
+        id: smoke
+        if: steps.sidecars.outcome == 'success'
+        continue-on-error: true
+        run: node scripts/smoke-test-ytdlp.js
+
+      - name: Test Rust core
+        id: rust
+        if: steps.smoke.outcome == 'success'
+        continue-on-error: true
+        working-directory: src-tauri
+        run: cargo test --locked
+
+      - name: Open tested yt-dlp update pull request
+        if: steps.rust.outcome == 'success'
+        uses: peter-evans/create-pull-request@v7
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          branch: automation/update-ytdlp
+          delete-branch: true
+          commit-message: "chore: update yt-dlp to ${{ steps.latest.outputs.version }}"
+          title: "chore: update yt-dlp to ${{ steps.latest.outputs.version }}"
+          body: |
+            Automated weekly yt-dlp maintenance.
+
+            - Synchronized desktop and Android engine pins
+            - Passed the complete project check
+            - Prepared and version-verified the desktop sidecar
+            - Completed a real public-video transfer
+            - Passed the Rust test suite
+
+            Review and merge this PR. It does not publish a release automatically.
+          labels: |
+            dependencies
+            automated-maintenance
+
+      - name: Create or update maintenance failure issue
+        if: always() && (steps.install.outcome == 'failure' || steps.checks.outcome == 'failure' || steps.sidecars.outcome == 'failure' || steps.smoke.outcome == 'failure' || steps.rust.outcome == 'failure')
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const title = 'Automated maintenance needs attention';
+            const body = [
+              `The weekly maintenance run failed while checking yt-dlp ${{ steps.latest.outputs.version }}.`,
+              '',
+              `Install: ${{ steps.install.outcome }}`,
+              `Project checks: ${{ steps.checks.outcome }}`,
+              `Sidecars: ${{ steps.sidecars.outcome }}`,
+              `Real transfer: ${{ steps.smoke.outcome }}`,
+              `Rust tests: ${{ steps.rust.outcome }}`,
+              '',
+              `Run: ${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`,
+            ].join('\n');
+            const { data: issues } = await github.rest.issues.listForRepo({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: 'open',
+              labels: 'automated-maintenance',
+            });
+            const existing = issues.find((issue) => issue.title === title);
+            if (existing) {
+              await github.rest.issues.createComment({ owner: context.repo.owner, repo: context.repo.repo, issue_number: existing.number, body });
+            } else {
+              await github.rest.issues.create({ owner: context.repo.owner, repo: context.repo.repo, title, body, labels: ['automated-maintenance'] });
+            }
+
+      - name: Fail when maintenance validation failed
+        if: always() && (steps.install.outcome == 'failure' || steps.checks.outcome == 'failure' || steps.sidecars.outcome == 'failure' || steps.smoke.outcome == 'failure' || steps.rust.outcome == 'failure')
+        shell: pwsh
+        run: throw 'Automated maintenance validation failed; see the issue and prior step logs.'
