@@ -20,7 +20,9 @@ async function resolveDirectMedia(url, hintExtension = 'mp4') {
       reachable = true;
       contentType = res.headers.get('content-type') || '';
     }
-  } catch (e) {}
+  } catch (_error) {
+    // Some media servers reject HEAD; the bounded range GET below is the fallback.
+  }
 
   if (!reachable) {
     try {
@@ -30,7 +32,9 @@ async function resolveDirectMedia(url, hintExtension = 'mp4') {
         contentType = getRes.headers.get('content-type') || '';
       }
       if (getRes.body) await getRes.body.cancel();
-    } catch (e2) {}
+    } catch (_error) {
+      // The common unavailable-source error below intentionally hides transport details.
+    }
   }
 
   if (!reachable) throw new Error('This media source is unavailable or did not respond.');

@@ -47,7 +47,7 @@ pub async fn search_youtube_music(query: String, filter: String) -> Result<Value
 
 #[tauri::command]
 pub async fn get_capabilities() -> Value {
-    serde_json::json!({"platform":"desktop","sources":{"youtube":{"video":true,"audio":true,"media":true},"instagram":{"media":true},"facebook":{"media":true},"threads":{"media":true},"twitter":{"media":true},"soundcloud":{"audio":true},"spotify":{"audio":true,"smartMatch":true},"direct":{"video":true,"audio":true,"media":true},"unknown":{}}})
+    serde_json::json!({"platform":"desktop","sources":{"youtube":{"video":true,"audio":true,"media":true},"instagram":{},"facebook":{},"threads":{"media":true},"twitter":{},"soundcloud":{"audio":true},"spotify":{"audio":true,"smartMatch":true},"direct":{"video":true,"audio":true,"media":true},"unknown":{}}})
 }
 
 #[tauri::command]

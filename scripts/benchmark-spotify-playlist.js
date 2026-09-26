@@ -3,13 +3,15 @@ const fs = require('node:fs');
 const { createSearchAdapter } = require('../src/services/resolver/smartMatch/spotifyMatcher');
 const { getSpotifyMetadata } = require('../src/services/resolver/smartMatch/spotifyMetadata');
 const { evaluateCandidate } = require('../src/core/spotify/matcher');
-const { resolveSpotifySource } = require('../src/core/spotify/search-runtime');
+const { resolveSpotifyDecision } = require('../src/core/spotify/search-runtime');
 
-const playlistId = process.argv[2] || '7AQKdFWAEiQ6BFuQ6w7hx8';
+const playlistId = process.argv[2] && !process.argv[2].startsWith('--') ? process.argv[2] : '7AQKdFWAEiQ6BFuQ6w7hx8';
 const idsFileIndex = process.argv.indexOf('--ids-file');
 const idsFile = idsFileIndex >= 0 ? process.argv[idsFileIndex + 1] : null;
 const outputIndex = process.argv.indexOf('--output');
 const outputFile = outputIndex >= 0 ? process.argv[outputIndex + 1] : null;
+const limitIndex = process.argv.indexOf('--limit');
+const requestedLimit = limitIndex >= 0 ? Number(process.argv[limitIndex + 1]) : null;
 const concurrency = Math.max(1, Math.min(6, Number(process.env.SPOTIFY_BENCHMARK_CONCURRENCY) || 4));
 
 async function publicTrackIds() {
@@ -25,9 +27,10 @@ async function publicTrackIds() {
 }
 
 async function main() {
-  const ids = idsFile
+  const allIds = idsFile
     ? [...new Set(JSON.parse(fs.readFileSync(idsFile, 'utf8')))]
     : await publicTrackIds();
+  const ids = Number.isInteger(requestedLimit) && requestedLimit > 0 ? allIds.slice(0, requestedLimit) : allIds;
   const results = new Array(ids.length);
   let cursor = 0;
   async function worker() {
@@ -40,12 +43,25 @@ async function main() {
       try {
         metadata = await getSpotifyMetadata(`https://open.spotify.com/track/${id}`);
         const baseAdapter = createSearchAdapter();
-        const match = await resolveSpotifySource(metadata, { search: async (stage, track) => {
+        const decision = await resolveSpotifyDecision(metadata, { search: async (stage, track) => {
           const candidates = await baseAdapter.search(stage, track);
           attemptedCandidates.push(...candidates.map((candidate) => ({ ...candidate, searchStage: stage.name })));
           return candidates;
         } });
-        if (!match) throw new Error('Could not confidently match this Spotify track.');
+        if (decision.status === 'ambiguous') {
+          results[index] = {
+            position: index + 1, id, ok: false, choiceRequired: true, title: metadata.title, creator: metadata.artist,
+            spotifyDuration: metadata.duration,
+            choices: decision.candidates.map(({ candidate, score }) => ({
+              source: candidate.url || candidate.sourceUrl, videoId: candidate.videoId || candidate.id,
+              title: candidate.title, artists: candidate.artists, duration: candidate.duration, score
+            })),
+            milliseconds: Date.now() - started
+          };
+          continue;
+        }
+        if (decision.status !== 'matched') throw new Error('Could not confidently match this Spotify track.');
+        const match = decision.match;
         const roundTrip = evaluateCandidate(JSON.parse(JSON.stringify(metadata)), JSON.parse(JSON.stringify(match.candidate)));
         const source = match.candidate.url || match.candidate.sourceUrl;
         results[index] = {
@@ -76,12 +92,19 @@ async function main() {
   }
   await Promise.all(Array.from({ length: concurrency }, worker));
   const passed = results.filter((result) => result.ok);
-  const failed = results.filter((result) => !result.ok);
+  const choices = results.filter((result) => result.choiceRequired);
+  const failed = results.filter((result) => !result.ok && !result.choiceRequired);
   process.stdout.write('\n');
   const timings = results.map((result) => result.milliseconds).sort((a, b) => a - b);
   const summary = {
-    playlistId, idsFile, tested: results.length, matched: passed.length, failed: failed.length,
-    matchRate: Number((passed.length / results.length * 100).toFixed(1)),
+    playlistId, idsFile, tested: results.length,
+    automaticMatches: passed.length,
+    choiceRequired: choices.length,
+    safeRejectionsOrFailures: failed.length,
+    wrongMatches: null,
+    correctnessUnverified: true,
+    automaticMatchRate: Number((passed.length / results.length * 100).toFixed(1)),
+    coveredWithChoiceRate: Number(((passed.length + choices.length) / results.length * 100).toFixed(1)),
     desktopAndroidIdentical: passed.every((result) => result.desktopAndroidIdentical),
     averageMilliseconds: Math.round(timings.reduce((sum, value) => sum + value, 0) / Math.max(1, timings.length)),
     p95Milliseconds: timings[Math.min(timings.length - 1, Math.floor(timings.length * 0.95))] || 0,

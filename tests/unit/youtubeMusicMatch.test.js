@@ -1,5 +1,5 @@
 const { parseYouTubeMusicResults, durationSeconds } = require('../../src/services/resolver/smartMatch/youtubeMusic');
-const { resolveSpotifySource, searchStages } = require('../../src/core/spotify/search-runtime.js');
+const { dedupeCandidates, resolveSpotifyDecision, resolveSpotifySource, searchStages, MAX_STAGE_CANDIDATES } = require('../../src/core/spotify/search-runtime.js');
 const { evaluateCandidate } = require('../../src/core/spotify/matcher.js');
 const { confidentMatch } = require('../../src/core/spotify/matcher.js');
 
@@ -11,7 +11,8 @@ describe('structured YouTube Music SmartMatch', () => {
   const track = { title: 'Tum Hi Ho', primaryArtist: 'Arijit Singh', artists: ['Arijit Singh', 'Mithoon'], album: 'Aashiqui 2', duration: 262 };
 
   it('builds bounded song-first stages with a generic final fallback', () => {
-    expect(searchStages(track).map((stage) => stage.filter)).toEqual(['songs', 'songs', 'videos', 'generic']);
+    expect(searchStages(track).map((stage) => stage.filter)).toEqual(['songs', 'songs', 'songs', 'songs', 'songs', 'videos', 'generic', 'generic', 'generic']);
+    expect(searchStages(track)[2]).toMatchObject({ name: 'catalog-evidence-song', query: expect.stringContaining('Aashiqui 2') });
     expect(searchStages({ ...track, isrc: 'INS181300012' })[0]).toMatchObject({ filter: 'songs', query: 'INS181300012' });
   });
 
@@ -29,6 +30,16 @@ describe('structured YouTube Music SmartMatch', () => {
     const results = parseYouTubeMusicResults({ contents: [{ musicResponsiveListItemRenderer: renderer }] }, 'songs');
     expect(results[0]).toMatchObject({ videoId: 'abc123', resultType: 'song', artists: ['Arijit Singh'], album: 'Aashiqui 2', duration: 262, verified: true });
     expect(durationSeconds('1:02:03')).toBe(3723);
+  });
+
+  it('rejects malformed candidates and bounds each upstream result set', async () => {
+    expect(dedupeCandidates([null, {}, { videoId: 'bad', title: '' }, { videoId: 'long', title: 'x'.repeat(301) }, { videoId: 'ok', title: 'Song', duration: 200 }]))
+      .toEqual([{ videoId: 'ok', title: 'Song', duration: 200 }]);
+    const oversized = [
+      ...Array.from({ length: MAX_STAGE_CANDIDATES }, (_, index) => ({ videoId: `wrong-${index}`, resultType: 'song', title: 'Different Song', artists: ['Different Artist'], duration: 262 })),
+      { videoId: 'outside-bound', resultType: 'song', title: track.title, artists: track.artists, duration: 262 }
+    ];
+    await expect(resolveSpotifySource(track, { search: async () => oversized })).resolves.toBeNull();
   });
 
   it('parses Android YouTube Music responses when subtitle runs omit navigation endpoints', () => {
@@ -53,7 +64,7 @@ describe('structured YouTube Music SmartMatch', () => {
       return [{ videoId: 'correct', url: 'https://www.youtube.com/watch?v=correct', resultType: 'song', title: track.title, artists: track.artists, album: track.album, duration: 262, verified: true }];
     } });
     expect(match?.candidate.videoId).toBe('correct');
-    expect(calls).toEqual(['all-artists-song', 'primary-artist-song', 'music-video']);
+    expect(calls).toEqual(['all-artists-song', 'primary-artist-song', 'catalog-evidence-song', 'title-first-song', 'title-only-song', 'music-video']);
   });
 
   it('rejects wrong recordings before ranking', () => {
@@ -77,6 +88,16 @@ describe('structured YouTube Music SmartMatch', () => {
     const first = { videoId: 'one', resultType: 'generic-video', title: 'Tum Hi Ho', artists: ['Arijit Singh'], duration: 262 };
     const second = { videoId: 'two', resultType: 'generic-video', title: 'Tum Hi Ho', artists: ['Arijit Singh'], duration: 262 };
     expect(confidentMatch(track, [first, second])).toBeNull();
+  });
+
+  it('returns a bounded ambiguity decision instead of auto-selecting a near tie', async () => {
+    const candidates = [
+      { videoId: 'one', resultType: 'generic-video', title: track.title, artists: ['Arijit Singh'], uploader: 'Upload One', duration: 250, url: 'https://youtube.test/one' },
+      { videoId: 'two', resultType: 'generic-video', title: track.title, artists: ['Arijit Singh'], uploader: 'Upload Two', duration: 274, url: 'https://youtube.test/two' }
+    ];
+    const decision = await resolveSpotifyDecision(track, { search: async () => candidates });
+    expect(decision.status).toBe('ambiguous');
+    expect(decision.candidates).toHaveLength(2);
   });
 
   it('retains only verified same-recording candidates as download fallbacks', async () => {

@@ -1,7 +1,8 @@
 import { invoke } from '@tauri-apps/api/core';
 import type { MediaEngine } from './types';
 import type { DownloadJob, DownloadProgress, DownloadRequest, EngineStatus, MediaMode, PlatformCapabilities, PlatformType, ReleaseInfo, ResolvedMedia } from '../media/types';
-import { detectSource } from '../sources/detectSource';
+import { detectSource, isUnavailableSource } from '../sources/detectSource';
+import { MediaEngineError } from '../media/errors';
 import { resolveSpotifySource, type SearchStage } from '../spotify/search';
 import { parseYouTubeMusicResults } from '../spotify/youtubeMusic';
 import type { MatchCandidate, TrackIdentity } from '../spotify/score';
@@ -12,6 +13,7 @@ export class NativeMediaEngine implements MediaEngine {
   getEngineStatus() { return invoke<EngineStatus>('get_engine_status'); }
   getReleaseInfo() { return invoke<ReleaseInfo>('get_release_info'); }
   async resolveMedia(url: string, mode: MediaMode = 'video') {
+    if (isUnavailableSource(detectSource(url))) throw new MediaEngineError('UNSUPPORTED_SOURCE');
     if (detectSource(url) !== 'spotify') return invoke<ResolvedMedia>('resolve_media', { request: { url, mode } });
     const track = await invoke<TrackIdentity & { thumbnail?: string }>('get_spotify_metadata', { url });
     const match = await resolveSpotifySource(track, { search: async (stage: SearchStage) => {
@@ -28,7 +30,10 @@ export class NativeMediaEngine implements MediaEngine {
     const fallbackSourceUrls = (match.alternatives || []).map((candidate) => candidate.sourceUrl || candidate.url).filter((value): value is string => Boolean(value) && value !== sourceUrl);
     return { success: true, platform: 'spotify', title: track.title, creator: track.artists.join(', '), thumbnail: track.thumbnail, duration: track.duration, type: 'audio', qualityLabel: 'Verified high-confidence match', sourceUrl, fallbackSourceUrls } satisfies ResolvedMedia;
   }
-  downloadMedia(request: DownloadRequest) { return invoke<DownloadJob>('download_media', { request }); }
+  downloadMedia(request: DownloadRequest) {
+    if (isUnavailableSource(detectSource(request.url))) throw new MediaEngineError('UNSUPPORTED_SOURCE');
+    return invoke<DownloadJob>('download_media', { request });
+  }
   cancelDownload(jobId: string) { return invoke<void>('cancel_download', { jobId }); }
   getDownloadProgress(jobId: string) { return invoke<DownloadProgress>('get_download_progress', { jobId }); }
 }

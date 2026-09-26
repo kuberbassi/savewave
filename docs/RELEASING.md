@@ -4,14 +4,12 @@ Follow the complete [release checklist](RELEASE_CHECKLIST.md) for every version.
 
 ## Required checks
 
-```bash
-npm ci
-npm run lint
-npm test
-npm run build
-npm run prepare:sidecars
-cd src-tauri
-cargo test --locked
+```powershell
+npm.cmd ci
+npm.cmd run check
+npm.cmd run build:electron
+npm.cmd run capacitor:sync
+npm.cmd run electron:pack -- --publish never
 ```
 
 ## Windows
@@ -19,13 +17,12 @@ cargo test --locked
 Build the NSIS installer:
 
 ```powershell
-$env:PATH = "$env:USERPROFILE\.cargo\bin;$env:PATH"
-npx.cmd tauri build --bundles nsis
+npm.cmd run electron:pack -- --publish never
 ```
 
 The resulting setup file contains Savewave plus private yt-dlp and FFmpeg application dependencies. End users install one setup file and should not manage sidecars themselves.
 
-Tagged releases are automated by `.github/workflows/release.yml`: a `vMAJOR.MINOR.PATCH` tag runs all checks, builds the NSIS installer, creates a SHA-256 checksum, and attaches both to GitHub Releases. The tag, `package.json`, `src-tauri/tauri.conf.json`, and `public/client-version.json` versions must match.
+Tagged releases are automated by `.github/workflows/release.yml`: a `vMAJOR.MINOR.PATCH` tag runs all checks, builds the Electron NSIS installer, creates a SHA-256 checksum, and attaches both to GitHub Releases. The tag and all version locations in the release checklist must match.
 
 Production distribution requires an Authenticode code-signing certificate. Unsigned builds may trigger Windows SmartScreen even when their checksum and source are valid.
 
@@ -33,22 +30,22 @@ Production distribution requires an Authenticode code-signing certificate. Unsig
 
 1. Build, test, checksum, and publish the Windows installer on GitHub Releases.
 2. Confirm the public asset downloads successfully.
-3. Update `public/client-version.json` with the new semantic version and HTTPS installer/changelog links.
-4. Deploy the website. Older desktop and Android clients will show the update notice on each fresh launch until updated.
+3. Update `public/client-version.json` only after confirming both versioned release assets and the Windows checksum are public.
+4. Deploy the website. Older desktop clients will automatically stage and launch the verified one-click installer on startup. A failure leaves the old app usable. Android offers the APK and requires a system install confirmation.
 
-The manifest is notification-only and must never be updated before its installer exists. Savewave does not silently download or execute updates. If automatic installation is added later, use Tauri's signed updater with a protected CI private key and a matching embedded public key; never commit signing secrets.
+The manifest must never be updated before its installers exist. The Windows updater accepts only the expected versioned GitHub asset path and a matching published SHA-256 file. This guards against transfer corruption but is not equivalent to an Authenticode publisher signature; unsigned installers may still trigger Windows SmartScreen. Keep the GitHub repository and release workflow protected.
 
 ## Android
 
-Android requires Java 17+, Android command-line tools, the SDK/NDK, Rust Android targets, Tauri Android initialization, plugin registration, and physical-device validation. APK/AAB signing credentials must be supplied through environment variables or CI secrets.
+Android requires Java 17+, Android command-line tools, the SDK, Capacitor sync, and physical-device validation. APK signing credentials must be supplied through environment variables or CI secrets.
 
-Android uses the same notification-only `public/client-version.json` manifest as desktop, fetched from the repository's raw `main` branch. Release links are accepted only over HTTPS from the Savewave site or GitHub. Publish and verify the signed APK/AAB before increasing the manifest version.
+Android reads the same `public/client-version.json` manifest through its native bridge. The APK link must point to the expected HTTPS GitHub release asset. Publish and verify the signed APK before increasing the manifest version. Android does not permit an ordinary sideloaded app to silently replace itself; the user must confirm installation in the system UI.
 
 Users install an update by opening the newer APK over the existing app. Android preserves app data when the application ID and signing key are unchanged and the new APK has a higher `versionCode`; uninstalling first is neither required nor recommended.
 
-The manual `Android Release` GitHub workflow builds an ARM64 release APK only when these repository secrets exist: `ANDROID_KEYSTORE_BASE64`, `ANDROID_KEY_ALIAS`, `ANDROID_STORE_PASSWORD`, and `ANDROID_KEY_PASSWORD`.
+The `Android Release` GitHub workflow builds an ARM64 release APK on a release tag or manual run only when these repository secrets exist: `ANDROID_KEYSTORE_BASE64`, `ANDROID_KEY_ALIAS`, `ANDROID_STORE_PASSWORD`, and `ANDROID_KEY_PASSWORD`.
 
-Generate the keystore once, keep two offline backups, and never replace it: future upgrades must be signed by the same key. The workflow decodes it only into the temporary runner directory, injects signing through environment variables, verifies the APK signature, creates a SHA-256 checksum, and uploads both artifacts. Publishing remains a separate deliberate step.
+Generate the keystore once, keep two offline backups, and never replace it: future upgrades must be signed by the same key. The workflow decodes it only into the temporary runner directory, injects signing through environment variables, verifies the APK signature, creates a SHA-256 checksum, and uploads both artifacts. A tag also publishes them to GitHub Releases; a manual workflow run only preserves artifacts.
 
 ### Create the Android signing secrets on Windows
 

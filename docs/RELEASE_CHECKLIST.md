@@ -13,6 +13,8 @@ Use the same `MAJOR.MINOR.PATCH` value in:
 - `src-tauri/tauri.conf.json`
 - generated `src-tauri/gen/android/app/tauri.properties` (`versionName` and increasing `versionCode`, checked when the local Android project has been initialized)
 - `src-tauri/android/savewave-media/src/main/java/com/kuberbassi/savewave/media/SavewaveMediaPlugin.kt`
+- `android/app/build.gradle` (`versionName` and monotonically increasing `versionCode`)
+- `android/app/src/main/java/com/kuberbassi/savewave/SavewaveMediaPlugin.java`
 - `public/config.js` (the web/footer fallback)
 - `src/core/platform/android.ts`
 - `src/core/platform/web.ts`
@@ -37,21 +39,30 @@ npm.cmd ci
 npm.cmd run lint
 npm.cmd test
 npm.cmd run check
+npm.cmd run build:electron
+npm.cmd run capacitor:sync
 npm.cmd run prepare:sidecars
+npm.cmd run electron:pack -- --publish never
 Push-Location src-tauri
 cargo test --locked
+Pop-Location
+Push-Location android
+.\gradlew.bat testDebugUnitTest lintDebug assembleDebug
 Pop-Location
 ```
 
 `npm run check` fails if a known version location, changelog entry, generated browser bundle, Android version code, or release URL is stale.
 
-## 4. Test real downloads
+## 4. Test installed clients
+
+Complete [the installed-client matrix](MANUAL_TEST_MATRIX.md), including rejection of Instagram, Facebook, and X/Twitter links on both installed clients.
 
 - Windows: install the produced `.exe`, launch it, and complete one real video plus audio download.
 - Android: install the signed APK over the previous version on a physical ARM64 phone and complete the same download.
 - Confirm HTTP 403/429 errors are reported accurately and retry behavior does not corrupt output.
 - Confirm the app footer displays the release version on desktop, web, and Android.
-- Confirm the update notice points to the newly published asset.
+- Confirm Windows automatically downloads the versioned GitHub release installer, verifies its checksum, installs over the existing build, and reopens with data preserved. Test from an older installed version.
+- Confirm Android opens the signed APK and the system installer upgrades it in place with data preserved. Silent Android installation is not expected.
 
 Automated tests reduce mistakes but cannot guarantee every source, network, device, or future YouTube change will work.
 

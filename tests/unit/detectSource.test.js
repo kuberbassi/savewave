@@ -24,16 +24,19 @@ describe('Source Detector', () => {
     expect(res.platform).toBe('spotify');
   });
 
-  it('should detect Instagram URLs', () => {
+  it('rejects Instagram URLs as unavailable', () => {
     const res = detectSource('https://www.instagram.com/reel/C3_ab123456');
-    expect(res.valid).toBe(true);
+    expect(res.valid).toBe(false);
     expect(res.platform).toBe('instagram');
+    expect(res.reason).toContain('not currently supported');
   });
 
-  it('should detect Twitter/X URLs', () => {
+  it('rejects Facebook and Twitter/X URLs as unavailable', () => {
+    expect(detectSource('https://www.facebook.com/watch?v=123').valid).toBe(false);
     const res = detectSource('https://x.com/user/status/123456789');
-    expect(res.valid).toBe(true);
+    expect(res.valid).toBe(false);
     expect(res.platform).toBe('twitter');
+    expect(res.reason).toContain('not currently supported');
   });
 
   it('should accept direct MP4 media links', () => {

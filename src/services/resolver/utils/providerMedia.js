@@ -64,6 +64,7 @@ function normalizeExtractedMedia(rawInfo, mode = 'video') {
 
 function providerError(platform, error) {
   const message = String(error && (error.stderr || error.message) || '');
+  if (/no video formats found/i.test(message)) return new Error('POST_IMAGES_UNSUPPORTED');
   if (/login|authentication|cookies|private|not available/i.test(message)) {
     return new Error(`${platform} cannot download private or login-gated media. Try a public post or Reel instead.`);
   }

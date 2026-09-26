@@ -1,76 +1,54 @@
-# Savewave Architecture
+# Savewave architecture
 
 ## Product boundary
 
-Savewave has two deliberately separate surfaces:
+Savewave has two equally important installed clients: Windows desktop and Android APK. The website is only an installation and product-information surface. Media resolution and transfer run locally; there is no Savewave account database, media proxy, or cloud media storage.
 
-- The GitHub Pages website is a lightweight installation and product-information page.
-- Installed Tauri applications contain the Paste -> Resolve -> Preview -> Save workflow and execute media work locally.
-
-No extraction request is routed through the website. Savewave has no account system, remote user database, media proxy, or cloud media storage.
-
-## Layers
+## Current migration architecture
 
 ```text
 React interface
     |
 Shared TypeScript core
-    |-- source detection
-    |-- capability model
-    |-- media/error/progress contracts
-    |-- quality and filename policy
-    |-- Spotify normalization and scoring
-    |-- bounded on-device history
+    |-- source/capability detection
+    |-- runtime contracts and safe errors
+    |-- download policy and bounded workflow controller
+    |-- Spotify metadata, search, scoring, ambiguity, preferences
+    |-- bounded local history
     |
-Platform MediaEngine adapter
-    |-- Desktop: Tauri invoke
-    `-- Android: Tauri mobile plugin invoke
+MediaEngine adapter
+    |-- Windows: Electron isolated preload and allowlisted IPC
+    `-- Android: Capacitor plugin contract
             |
-Native execution
-    |-- Rust desktop commands + managed sidecars
-    `-- Kotlin Android engine + MediaStore
+Native execution boundary
+    |-- Electron/Node launches bundled yt-dlp and FFmpeg
+    `-- small Java bridge launches Android engines and publishes through MediaStore
 ```
 
-The UI never constructs shell commands or directly accesses native filesystems. All native operations use the `MediaEngine` contract in `src/core/platform/types.ts`.
+Tauri/Rust and the older Kotlin Android plugin remain temporary rollback implementations. They are not the target architecture and must not receive new product policy. Remove them only after the installed-client matrix passes.
 
-## Desktop lifecycle
+## Ownership rules
 
-1. Tauri loads `public/native.html` and the shared application bundle.
-2. The app checks its bundled yt-dlp engine.
-3. In parallel, it requests the small HTTPS `client-version.json` manifest. Failure is non-blocking; a newer valid semantic version shows explicit download and changelog actions.
-4. Source detection and capability checks run locally.
-5. Rust validates the HTTP(S) URL and invokes yt-dlp with structured arguments.
-6. Metadata is normalized for the preview.
-7. A job-scoped process downloads the selected streams to isolated temporary storage.
-8. FFmpeg merges or remuxes only when required.
-9. The completed file moves to the OS Downloads directory.
-10. Bounded history metadata is stored inside the local application WebView database.
+- `src/core`: authoritative product contracts, limits, state, policies, Spotify decisions, and workflow control.
+- `public/app.jsx`: interface composition and view state; it calls shared workflows rather than reimplementing them.
+- `src/desktop`: Electron window security, IPC input validation, process transport, and OS integration.
+- `android/app/src/main/java`: Android engine/process transport, cancellation, lifecycle cleanup, and MediaStore publication.
+- `src/services/resolver`: provider metadata adapters used by the shared resolver path.
+- Generated browser assets are `public/app.js`, `public/landing.js`, `public/core.js`, `public/dist.css`, and `public/vendor/*`; edit their sources and run the build.
+- `dist-electron`, `dist-capacitor`, Android build folders, coverage, and packaged output are disposable build products.
 
-Cancellation kills only the selected job and cleans its temporary directory.
+## Reliability boundaries
 
-## Android lifecycle and resource policy
+- Only public HTTP(S) media is supported. Private, cookie-only, paid, authenticated, and DRM media is outside scope.
+- User text is never interpolated into shell command strings.
+- Runtime payloads are validated before entering application state.
+- Downloads are job-scoped, cancellable, bounded, and cleaned on terminal paths.
+- Instagram, Facebook, and X/Twitter links are recognized only to show an honest unsupported-source response. They are not advertised or passed to an extractor.
+- Android publishes completed files to `Downloads/Savewave`; it does not request broad storage access or run a permanent background service.
+- Spotify uncertainty produces a safe rejection or explicit two-option choice; popularity is never identity evidence.
+- Windows updates are GitHub-release-only: the Electron client validates the versioned asset URL and checks its downloaded bytes against the release SHA-256 file before invoking the one-click installer. A failed check leaves the installed app open.
+- Android performs its release check in the native bridge. APK installation remains an explicit Android system action, and in-place upgrades require the same package ID/signing key plus a higher version code.
 
-1. The Android activity applies system-bar insets and uses the same charcoal system chrome as the app.
-2. The bundled extractor initializes asynchronously once for the activity; resolve and save jobs wait on a bounded readiness latch, while FFmpeg initializes lazily on the first save that needs it. Extraction uses a fixed two-thread executor rather than an unbounded pool.
-3. The release manifest is fetched once per fresh launch with an eight-second timeout and the same HTTPS host allowlist as desktop.
-4. An immediate startup shell prevents a blank frame, off-screen sections use deferred rendering, UI polling slows while the app is backgrounded, and decorative animations pause completely.
-5. Only an explicit Resolve or Save action starts extraction. Savewave declares no background-service, wake-lock, boot, broad-storage, accessibility, overlay, contact, location, microphone, or camera permission.
-6. Destroying the activity cancels active extractor processes, stops executor work, clears temporary job files, and releases bounded in-memory job state.
-7. Completed files are published through scoped `MediaStore` into `Downloads/Savewave` with an extension-appropriate MIME type.
+## What automated checks do not prove
 
-Android intentionally does not run a permanent resident service. A download can continue while the activity remains alive, but the app does not attempt to keep itself awake indefinitely after Android destroys it.
-
-## Security boundaries
-
-- Raw user input is never interpolated into a command string.
-- Only bundled yt-dlp and FFmpeg sidecars may execute.
-- External UI links are restricted to an explicit HTTPS host allowlist.
-- `file:`, `data:`, `javascript:`, credential-bearing, localhost, loopback, and `.local` targets are rejected.
-- Android additionally resolves destinations before extraction and rejects unspecified, loopback, link-local, site-local, and multicast addresses.
-- Private, authenticated, cookie-only, paid, and DRM-protected media is outside the product boundary.
-- Release-manifest links must use HTTPS and are restricted to the Savewave website or GitHub before being returned to the UI.
-- Update checks are notification-only; Savewave never silently downloads or executes an installer or APK.
-
-## Maintenance
-
-Normal maintenance should consist mainly of yt-dlp compatibility updates, Tauri updates, Android SDK updates, and release signing. Provider-specific extraction logic should remain in yt-dlp rather than being duplicated in Savewave.
+Compilation, deterministic tests, and packaging cannot prove current third-party provider behavior, device lifecycle behavior, accessibility, signing, upgrade safety, or saved-media playback. Those belong to [MANUAL_TEST_MATRIX.md](MANUAL_TEST_MATRIX.md).

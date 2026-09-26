@@ -3,8 +3,7 @@
 const { ytdlp } = require('../utils/ytDlpRuntime');
 const { createNormalizedResponse } = require('../types/normalized');
 const { sanitizeFilename } = require('../utils/sanitizer');
-const { resolveSpotifySource } = require('../../../core/spotify/search-runtime.js');
-const { evaluateCandidate, normalize, sameRecording, versionMarkers } = require('../../../core/spotify/matcher.js');
+const { resolveSpotifyDecision } = require('../../../core/spotify/search-runtime.js');
 const { getSpotifyMetadata } = require('./spotifyMetadata');
 const { searchYouTubeMusic } = require('./youtubeMusic');
 
@@ -83,36 +82,24 @@ function createSearchAdapter() {
   };
 }
 
-function sameRecordingIdentity(first, second, metadata) {
-  if (sameRecording(metadata, first?.candidate, second?.candidate)) return true;
-  const left = first?.candidate; const right = second?.candidate;
-  if (!left || !right || normalize(left.uploader) === normalize(right.uploader)) return false;
-  const title = normalize(metadata.title);
-  const compatibleTitle = [left, right].every((item) => normalize(item.title).includes(title));
-  const compatibleDuration = [left, right].every((item) => !metadata.duration || !item.duration || Math.abs(metadata.duration - item.duration) <= 7);
-  const expectedVersions = versionMarkers(metadata.title).join('|');
-  return compatibleTitle && compatibleDuration && versionMarkers(left.title).join('|') === expectedVersions && versionMarkers(right.title).join('|') === expectedVersions;
-}
-
-function trustedCandidate(result, metadata) {
-  const candidate = result?.candidate;
-  if (!candidate || Number(result.score) < 70) return false;
-  const evaluation = evaluateCandidate(metadata, { ...candidate, resultType: 'generic-video' });
-  const authority = Boolean(candidate.channel_is_verified || candidate.isOfficialArtistChannel || candidate.official) ||
-    /(?:\btopic\b|\bvevo\b)/i.test(candidate.uploader || candidate.channel || '');
-  const identity = normalize(`${candidate.title || ''} ${candidate.artist || ''} ${candidate.uploader || candidate.channel || ''}`);
-  const hasArtist = (metadata.artists || [metadata.primaryArtist]).some((artist) => identity.includes(normalize(artist)));
-  const expectedVersions = versionMarkers(metadata.title);
-  const unexpectedVersion = versionMarkers(candidate.title).some((marker) => !expectedVersions.includes(marker));
-  const durationClose = !metadata.duration || !candidate.duration || Math.abs(metadata.duration - candidate.duration) <= 7;
-  return authority && hasArtist && durationClose && !unexpectedVersion && (evaluation.evidence.title >= 0.6 || Number(result.score) >= 80);
-}
-
 async function resolveSpotifySmartMatch(url) {
   try {
     const metadata = await getSpotifyMetadata(url);
-    const best = await resolveSpotifySource(metadata, createSearchAdapter());
-    if (!best) throw new Error('Could not confidently match this Spotify track. Try a direct audio or YouTube link instead.');
+    const decision = await resolveSpotifyDecision(metadata, createSearchAdapter());
+    if (decision.status === 'ambiguous') {
+      const matchOptions = decision.candidates.map(({ candidate, score }) => ({
+        sourceUrl: candidateUrl(candidate), title: candidate.title,
+        creator: (candidate.artists || []).join(', ') || candidate.artist || candidate.uploader || 'YouTube source',
+        duration: candidate.duration, score
+      })).filter((option) => option.sourceUrl);
+      if (matchOptions.length === 2) return createNormalizedResponse({
+        success: true, platform: 'spotify', type: 'audio', title: metadata.title, creator: metadata.artist,
+        thumbnail: metadata.thumbnail || null, duration: metadata.duration || null,
+        qualityLabel: 'Your choice required', selectionRequired: true, matchOptions
+      });
+    }
+    if (decision.status !== 'matched') throw new Error('Could not confidently match this Spotify track. Try a direct audio or YouTube link instead.');
+    const best = decision.match;
 
     const directUrl = candidateUrl(best.candidate);
     if (!directUrl) throw new Error('The matched source did not provide a downloadable URL.');
@@ -135,4 +122,4 @@ async function resolveSpotifySmartMatch(url) {
   }
 }
 
-module.exports = { candidateUrl, createSearchAdapter, genericCandidate, resolveSpotifySmartMatch, sameRecordingIdentity, searchCandidates, trustedCandidate, SEARCH_OPTIONS };
+module.exports = { candidateUrl, createSearchAdapter, genericCandidate, resolveSpotifySmartMatch, searchCandidates, SEARCH_OPTIONS };

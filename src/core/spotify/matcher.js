@@ -15,7 +15,8 @@ const VERSION_PATTERNS = Object.freeze({
   clean: /\bclean(?:\s+version)?\b/u,
   demo: /\bdemo\b/u,
   extended: /\bextended\b/u,
-  edit: /\b(?:radio\s+)?edit\b/u
+  edit: /\b(?:radio\s+)?edit\b/u,
+  anniversary: /\banniversary\b/u
 });
 
 const NON_SONG_PATTERNS = /\b(reaction|tutorial|interview|documentary|review|behind the scenes)\b/u;
@@ -32,14 +33,24 @@ function normalize(value) {
 
 function stripCatalogQualifier(value) {
   return String(value || '')
-    .replace(/\s*-\s*from\s+["“][^"”]+["”]\s*$/giu, ' ')
-    .replace(/\s*[\[(]\s*from\s+["“][^"”]+["”]\s*[\])]\s*$/giu, ' ')
+    .replace(/\s*-\s*from\s+(?:["“][^"”]+["”]|.+?)\s*$/giu, ' ')
+    .replace(/\s*[\[(]\s*from\s+(?:["“][^"”]+["”]|[^\])]+)\s*[\])]\s*$/giu, ' ')
     .trim();
 }
 
 function versionMarkers(value) {
   const text = normalize(value);
   return Object.entries(VERSION_PATTERNS).filter(([, pattern]) => pattern.test(text)).map(([marker]) => marker);
+}
+
+function versionBaseTitle(value) {
+  let title = String(value || '');
+  for (const pattern of Object.values(VERSION_PATTERNS)) {
+    title = title
+      .replace(new RegExp(`\\s*[\\[(][^\\])]${pattern.source}[^\\])]*[\\])]\\s*$`, 'iu'), ' ')
+      .replace(new RegExp(`\\s*-\\s*[^-]*${pattern.source}.*$`, 'iu'), ' ');
+  }
+  return title.trim();
 }
 
 function canonicalTitle(value, creditedArtists = []) {
@@ -50,7 +61,13 @@ function canonicalTitle(value, creditedArtists = []) {
     const known = creditedArtists.map(normalize).some((artist) => artist && (credit.includes(artist) || artist.includes(credit)));
     if (known) title = title.replace(credits[0], ' ');
   }
-  return title.trim();
+  return stripCatalogQualifier(title).trim();
+}
+
+function featureAgnosticTitle(value) {
+  return stripCatalogQualifier(value)
+    .replace(/\s*[\[(](?:feat(?:uring)?\.?|ft\.?)\s+[^\])]+[\])]/giu, ' ')
+    .trim();
 }
 
 function editSimilarity(first, second) {
@@ -80,7 +97,12 @@ function tokenSimilarity(first, second) {
 
 function textSimilarity(first, second) {
   const left = normalize(first); const right = normalize(second);
-  return Math.max(tokenSimilarity(left, right), editSimilarity(left, right));
+  const contained = left.length >= 3 && right.length >= 3 && (left.includes(right) || right.includes(left));
+  // Music catalogs frequently append an English translation, soundtrack name,
+  // or harmless display qualifier to an otherwise exact title. Preserve exact
+  // containment as strong evidence; incompatible version markers are still
+  // rejected independently by evaluateCandidate.
+  return Math.max(contained ? 0.96 : 0, tokenSimilarity(left, right), editSimilarity(left, right));
 }
 
 function candidateArtists(candidate) {
@@ -107,13 +129,18 @@ function durationSimilarity(expected, actual) {
 
 function incompatibleVersions(track, candidate) {
   const expected = new Set(versionMarkers(track.title));
-  return versionMarkers(candidate.title).filter((marker) => !expected.has(marker));
+  const actual = new Set(versionMarkers(candidate.title));
+  const unexpected = [...actual].filter((marker) => !expected.has(marker));
+  const requiredMarkers = new Set(['remix', 'live', 'acoustic', 'cover', 'instrumental', 'karaoke', 'slowed', 'sped-up', 'nightcore', '8d', 'clean', 'demo', 'extended', 'edit', 'anniversary']);
+  const missing = [...expected].filter((marker) => requiredMarkers.has(marker) && !actual.has(marker));
+  return [...unexpected, ...missing];
 }
 
 function authoritativeOwner(track, candidate) {
   const owner = normalize(candidate.uploader || candidate.author || candidate.artist || '');
   return [...new Set([track.primaryArtist, ...(track.artists || [])].map(normalize).filter(Boolean))]
-    .some((artist) => owner === artist || owner === `${artist} topic` || owner === `${artist} vevo`);
+    .some((artist) => owner === artist || owner === `${artist} topic` || owner === `${artist} vevo` ||
+      owner === `${artist} official` || owner === `${artist} official channel`);
 }
 
 function evaluateCandidate(track, candidate) {
@@ -132,13 +159,32 @@ function evaluateCandidate(track, candidate) {
 
   const expectedTitle = canonicalTitle(track.title, track.artists || []);
   const actualTitle = canonicalTitle(candidate.title, track.artists || []);
-  const title = textSimilarity(expectedTitle, actualTitle);
-  const artist = artistSimilarity(track, candidate);
+  // Compare a second, feature-credit-agnostic view so localized aliases such
+  // as 橋本絵莉子 and Eriko Hashimoto do not become false title mismatches.
+  const title = Math.max(
+    textSimilarity(expectedTitle, actualTitle),
+    textSimilarity(featureAgnosticTitle(track.title), featureAgnosticTitle(candidate.title)),
+    ...(versionMarkers(track.title).some((marker) => versionMarkers(candidate.title).includes(marker))
+      ? [textSimilarity(versionBaseTitle(expectedTitle), versionBaseTitle(actualTitle))] : [])
+  );
+  const measuredArtist = artistSimilarity(track, candidate);
+  // Catalogs commonly expose the same East Asian artist name in different
+  // localized scripts (for example 饭卡 vs 飯卡). Recover only when YouTube
+  // Music identifies a structured song and title + duration independently
+  // establish that it is the same recording.
+  const localizedCatalogIdentity = candidate.resultType === 'song' && title >= 0.82 &&
+    measuredArtist >= 0.45 && durationDiff !== null && durationDiff <= 3;
+  const artist = authoritativeOwner(track, candidate)
+    ? Math.max(measuredArtist, 0.9)
+    : localizedCatalogIdentity ? Math.max(measuredArtist, 0.82) : measuredArtist;
   if (title < 0.6) rejectionReasons.push('TITLE_MISMATCH');
   if (artist < 0.7) rejectionReasons.push('ARTIST_MISMATCH');
   if (candidate.resultType === 'generic-video' && NON_SONG_PATTERNS.test(normalize(candidate.title))) rejectionReasons.push('NON_SONG_CONTENT');
 
-  const duration = durationSimilarity(track.duration, candidate.duration);
+  const measuredDuration = durationSimilarity(track.duration, candidate.duration);
+  const duration = candidate.resultType === 'song' && title >= 0.95 && artist >= 0.9 &&
+    durationDiff !== null && durationLimit !== null && durationDiff <= durationLimit
+    ? Math.max(measuredDuration || 0, 0.75) : measuredDuration;
   const album = track.album && candidate.album ? textSimilarity(track.album, candidate.album) : null;
   const weighted = [
     [title, 0.42], [artist, 0.33],

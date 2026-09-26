@@ -54,7 +54,7 @@ function validateUrl(targetUrl) {
   let parsed;
   try {
     parsed = new URL(trimmed);
-  } catch (err) {
+  } catch (_error) {
     return { valid: false, reason: 'Malformed URL structure' };
   }
 

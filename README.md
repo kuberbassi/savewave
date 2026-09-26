@@ -9,9 +9,9 @@
 
   [Official Website](https://savewave.kuberbassi.com/) · [Changelog](CHANGELOG.md) · [Maintenance Guide](docs/MAINTENANCE.md) · [License](LICENSE)
 
-  ![Tauri 2](https://img.shields.io/badge/Tauri-2-24C8DB?style=flat-square&logo=tauri&logoColor=white)
+  ![Electron](https://img.shields.io/badge/Electron-desktop-47848F?style=flat-square&logo=electron&logoColor=white)
   ![TypeScript](https://img.shields.io/badge/TypeScript-5-3178C6?style=flat-square&logo=typescript&logoColor=white)
-  ![Rust](https://img.shields.io/badge/Rust-native_engine-000000?style=flat-square&logo=rust&logoColor=white)
+  ![Capacitor](https://img.shields.io/badge/Capacitor-Android-119EFF?style=flat-square&logo=capacitor&logoColor=white)
   ![yt-dlp](https://img.shields.io/badge/yt--dlp-local-FF0000?style=flat-square)
   ![License](https://img.shields.io/badge/license-MIT-green?style=flat-square)
 </div>
@@ -24,7 +24,7 @@ Savewave is a clean, local-first media downloader. It automatically detects medi
 
 - **Local Processing**: Extraction runs on-device via bundled `yt-dlp` and `FFmpeg`.
 - **Zero Cloud Storage**: No remote user database, account system, or media proxies.
-- **Public Content Only**: Supports public URLs (YouTube, Instagram, Facebook, X, SoundCloud, Direct Links, Spotify Smart Match). Private or DRM-gated media is unsupported.
+- **Public Content Only**: Supports public YouTube, SoundCloud, direct media links, and Spotify Smart Match. Instagram, Facebook, and X/Twitter are not currently supported; private or DRM-gated media is also unsupported.
 
 ---
 
@@ -34,9 +34,9 @@ Savewave is a clean, local-first media downloader. It automatically detects medi
 | --- | --- | --- |
 | **Frontend UI** | React 18, Tailwind CSS | Responsive Paste → Preview → Save interface |
 | **Core Logic** | TypeScript, Vitest | Source detection, capability gates, error handling, Spotify match scoring |
-| **Desktop App** | Tauri 2, Rust | Safe process lifecycle, URL validation, sidecar management, native saving |
+| **Desktop App** | Electron, Node.js | Isolated IPC, bundled engines, native saving, verified GitHub updates |
 | **Media Engine** | `yt-dlp`, `FFmpeg` | Local public media extraction and stream remuxing |
-| **Android App** | Kotlin, `youtubedl-android` | Native Android engine and scoped `MediaStore` saving |
+| **Android App** | Capacitor, small Java bridge, `youtubedl-android` | Native engine and scoped `MediaStore` saving |
 
 ---
 
@@ -44,7 +44,7 @@ Savewave is a clean, local-first media downloader. It automatically detects medi
 
 ### Prerequisites
 - Node.js `22+`
-- Rust `stable`
+- Android Studio and Java 21 for APK builds
 
 ### Quick Start
 
@@ -57,7 +57,7 @@ npm run check
 
 # 3. Download local sidecars & launch desktop app in dev mode
 npm run prepare:sidecars
-npm run tauri:dev
+npm run electron:dev
 ```
 
 ### Useful Commands
@@ -66,11 +66,11 @@ npm run tauri:dev
 # Run test suite
 npm test
 
-# Run Rust unit tests
-cd src-tauri && cargo test
-
 # Build production desktop installer
-npm run tauri:build
+npm run electron:pack -- --publish never
+
+# Sync the Android project, then build its APK in android/
+npm run capacitor:sync
 ```
 
 ---

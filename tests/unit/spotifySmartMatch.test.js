@@ -1,439 +1,144 @@
-import { describe, it, expect } from 'vitest';
-const { scoreCandidate, titleCoverage } = require('../../src/services/resolver/smartMatch/scoreCandidate');
-const { normalizeTitle, normalizeArtist, stripFeaturedArtists, extractVersionMarkers } = require('../../src/services/resolver/smartMatch/normalizers');
-const { SEARCH_OPTIONS, sameRecordingIdentity, trustedCandidate } = require('../../src/services/resolver/smartMatch/spotifyMatcher');
+import { describe, expect, it } from 'vitest';
 
-describe('Spotify Smart Match Confidence Engine (30 Requirements Test Suite)', () => {
-  const baseSpotifyTrack = {
-    title: 'Starboy',
-    artist: 'The Weeknd',
-    primaryArtist: 'The Weeknd',
-    artists: ['The Weeknd', 'Daft Punk'],
-    album: 'Starboy',
-    duration: 230,
-    isrc: 'USUM71607007'
-  };
+const {
+  canonicalTitle,
+  confidentMatch,
+  evaluateCandidate,
+  normalize,
+  sameRecording,
+  scoreCandidate,
+  versionMarkers
+} = require('../../src/core/spotify/matcher.js');
+const { SEARCH_OPTIONS } = require('../../src/services/resolver/smartMatch/spotifyMatcher');
 
-  // 1. exact title + artist + duration
-  it('1. exact title + artist + duration should score VERY HIGH (>= 90)', () => {
-    const cand = {
-      title: 'Starboy',
-      uploader: 'The Weeknd - Topic',
-      duration: 230
-    };
-    const res = scoreCandidate(baseSpotifyTrack, cand);
-    expect(res.score).toBeGreaterThanOrEqual(90);
-    expect(res.confidenceLabel).toBe('VERY HIGH');
-    expect(res.pass).toBe(true);
+const track = {
+  title: 'Starboy', artist: 'The Weeknd', primaryArtist: 'The Weeknd',
+  artists: ['The Weeknd', 'Daft Punk'], album: 'Starboy', duration: 230,
+  isrc: 'USUM71607007'
+};
+
+const official = (overrides = {}) => ({
+  title: 'Starboy', uploader: 'The Weeknd - Topic', duration: 230,
+  resultType: 'song', ...overrides
+});
+
+describe('shared Spotify identity matcher', () => {
+  it('accepts an exact official recording with high confidence', () => {
+    const result = evaluateCandidate(track, official());
+    expect(result.accepted).toBe(true);
+    expect(result.score).toBeGreaterThanOrEqual(90);
+    expect(confidentMatch(track, [official()])?.candidate.title).toBe('Starboy');
   });
 
-  // 2. same title, wrong artist
-  it('2. same title, wrong artist should be REJECTED (< 80)', () => {
-    const cand = {
-      title: 'Starboy',
-      uploader: 'Random Cover Channel',
-      duration: 230
-    };
-    const res = scoreCandidate(baseSpotifyTrack, cand);
-    expect(res.pass).toBe(false);
+  it.each([
+    ['wrong artist', { uploader: 'Random Cover Channel', artists: ['Random Cover Channel'] }, 'ARTIST_MISMATCH'],
+    ['remix', { title: 'Starboy Kygo Remix' }, 'VERSION_CONFLICT'],
+    ['live version', { title: 'Starboy Live at Wembley' }, 'VERSION_CONFLICT'],
+    ['cover', { title: 'Starboy Acoustic Cover' }, 'VERSION_CONFLICT'],
+    ['instrumental', { title: 'Starboy Instrumental' }, 'VERSION_CONFLICT'],
+    ['karaoke', { title: 'Starboy Karaoke Version' }, 'VERSION_CONFLICT'],
+    ['nightcore', { title: 'Starboy Nightcore' }, 'VERSION_CONFLICT'],
+    ['long duration mismatch', { duration: 260 }, 'DURATION_MISMATCH'],
+    ['wrong ISRC', { isrc: 'GBAYE9999999' }, 'ISRC_CONFLICT'],
+    ['unrelated title', { title: 'A Completely Different Song' }, 'TITLE_MISMATCH'],
+    ['non-song content', { title: 'Starboy Documentary Interview', resultType: 'generic-video' }, 'NON_SONG_CONTENT']
+  ])('rejects %s', (_label, candidate, reason) => {
+    const result = evaluateCandidate(track, official(candidate));
+    expect(result.accepted).toBe(false);
+    expect(result.rejectionReasons).toContain(reason);
   });
 
-  // 3. correct song vs remix
-  it('3. correct song vs unwanted remix should penalize and reject', () => {
-    const cand = {
-      title: 'Starboy (Kygo Remix)',
-      uploader: 'The Weeknd',
-      duration: 230
-    };
-    const res = scoreCandidate(baseSpotifyTrack, cand);
-    expect(res.penalties).toContain("Contains unwanted 'remix' (-60)");
+  it('rejects a known clean candidate for an explicit track', () => {
+    const result = evaluateCandidate({ ...track, explicit: true }, official({ title: 'Starboy Clean Version', explicit: false }));
+    expect(result.rejectionReasons).toContain('EXPLICIT_CONFLICT');
   });
 
-  // 4. correct song vs live version
-  it('4. correct song vs unwanted live version should penalize', () => {
-    const cand = {
-      title: 'Starboy (Live at O2 Arena)',
-      uploader: 'The Weeknd',
-      duration: 230
-    };
-    const res = scoreCandidate(baseSpotifyTrack, cand);
-    expect(res.penalties).toContain("Contains unwanted 'live' (-60)");
+  it('accepts requested alternate versions but not other versions', () => {
+    for (const title of ['Starboy Remix', 'Starboy Live', 'Starboy Acoustic', 'Starboy Remastered']) {
+      expect(evaluateCandidate({ ...track, title }, official({ title })).accepted).toBe(true);
+    }
+    expect(evaluateCandidate({ ...track, title: 'Starboy Live' }, official({ title: 'Starboy Remix' })).accepted).toBe(false);
+    expect(evaluateCandidate({ ...track, title: 'Starboy Remix' }, official()).rejectionReasons).toContain('VERSION_CONFLICT');
   });
 
-  // 5. correct song vs slowed version
-  it('5. correct song vs slowed version should penalize', () => {
-    const cand = {
-      title: 'Starboy (Slowed + Reverb)',
-      uploader: 'Slowed Central',
-      duration: 280
-    };
-    const res = scoreCandidate(baseSpotifyTrack, cand);
-    expect(res.pass).toBe(false);
+  it('treats exact matching ISRC as conclusive only when other evidence is safe', () => {
+    expect(evaluateCandidate(track, official({ isrc: track.isrc })).score).toBe(100);
+    expect(evaluateCandidate(track, official({ title: 'Starboy Remix', isrc: track.isrc })).accepted).toBe(false);
   });
 
-  // 6. correct song vs sped-up version
-  it('6. correct song vs sped-up version should penalize', () => {
-    const cand = {
-      title: 'Starboy (Sped Up)',
-      uploader: 'Speed Audio',
-      duration: 180
-    };
-    const res = scoreCandidate(baseSpotifyTrack, cand);
-    expect(res.pass).toBe(false);
+  it('normalizes punctuation, accents, scripts, and catalogue qualifiers', () => {
+    expect(normalize('AC/DC')).toBe('ac dc');
+    expect(normalize('Beyonce\u0301')).toBe('beyonce');
+    expect(normalize('\u6c38\u9060\u306b\u5149\u308c')).toBe('\u6c38\u9060\u306b\u5149\u308c');
+    expect(canonicalTitle('Makhna - From "Drive"')).toBe('Makhna');
+    expect(canonicalTitle('Khadke Glassy - From  Jabariya Jodi')).toBe('Khadke Glassy');
+    expect(canonicalTitle('Kaun Nachdi (From  Sonu Ke Titu Ki Sweety )')).toBe('Kaun Nachdi');
+    expect(canonicalTitle('Malang (Title Track) [From  Malang - Unleash The Madness ]')).toBe('Malang (Title Track)');
+    expect(canonicalTitle('Patola (From  Patola ) (feat. Bohemia)', ['Bohemia'])).toBe('Patola');
   });
 
-  // 7. correct song vs cover
-  it('7. correct song vs cover should penalize (-60)', () => {
-    const cand = {
-      title: 'Starboy (Acoustic Cover)',
-      uploader: 'John Doe Covers',
-      duration: 230
-    };
-    const res = scoreCandidate(baseSpotifyTrack, cand);
-    expect(res.penalties).toContain("Contains unwanted 'cover' (-60)");
+  it('recognizes exact titles with appended catalog translations', () => {
+    const translated = official({ title: 'ただ声一つ - One Voice', artists: ['Rokudenashi'], duration: 230 });
+    const localized = { ...track, title: 'ただ声一つ', primaryArtist: 'Rokudenashi', artists: ['Rokudenashi'] };
+    expect(evaluateCandidate(localized, translated).evidence.title).toBeGreaterThanOrEqual(0.95);
+    expect(evaluateCandidate(localized, translated).accepted).toBe(true);
   });
 
-  // 8. correct song vs instrumental
-  it('8. correct song vs instrumental should penalize (-60)', () => {
-    const cand = {
-      title: 'Starboy (Instrumental)',
-      uploader: 'Karaoke King',
-      duration: 230
-    };
-    const res = scoreCandidate(baseSpotifyTrack, cand);
-    expect(res.penalties).toContain("Contains unwanted 'instrumental' (-60)");
+  it('keeps appended known alternate versions blocked for a plain track', () => {
+    expect(evaluateCandidate(track, official({ title: 'Starboy Remix' })).rejectionReasons).toContain('VERSION_CONFLICT');
+    expect(evaluateCandidate(track, official({ title: 'Starboy Karaoke Version' })).rejectionReasons).toContain('VERSION_CONFLICT');
   });
 
-  // 9. correct song vs karaoke
-  it('9. correct song vs karaoke should penalize (-70)', () => {
-    const cand = {
-      title: 'Starboy (Karaoke Version)',
-      uploader: 'SingAlong',
-      duration: 230
-    };
-    const res = scoreCandidate(baseSpotifyTrack, cand);
-    expect(res.penalties).toContain("Contains unwanted 'karaoke' (-70)");
+  it('matches the shared base title for explicitly requested alternate versions', () => {
+    const liveTrack = { ...track, title: 'Hotel California - Live On MTV, 1994', primaryArtist: 'Eagles', artists: ['Eagles'], duration: 434 };
+    const liveCandidate = { title: 'Hotel California (Live)', artists: ['Eagles'], uploader: 'Eagles Official', duration: 434, resultType: 'generic-video' };
+    const result = evaluateCandidate(liveTrack, liveCandidate);
+    expect(result.accepted).toBe(true);
+    expect(result.evidence.title).toBeGreaterThanOrEqual(0.95);
   });
 
-  // 10. official audio vs random upload
-  it('10. official audio should receive bonus (+6)', () => {
-    const cand = {
-      title: 'Starboy (Official Audio)',
-      uploader: 'The Weeknd',
-      duration: 230
-    };
-    const res = scoreCandidate(baseSpotifyTrack, cand);
-    expect(res.bonuses).toContain('Official Audio Tag (+6)');
+  it('recognizes official channel ownership and tolerates bounded catalog duration drift for exact songs', () => {
+    const officialChannel = official({ uploader: 'The Weeknd Official Channel', artists: ['The Weeknd'], resultType: 'generic-video' });
+    expect(confidentMatch(track, [officialChannel])?.candidate).toBe(officialChannel);
+    const drifted = official({ artists: track.artists, duration: track.duration + 10 });
+    expect(evaluateCandidate(track, drifted).score).toBeGreaterThanOrEqual(90);
   });
 
-  // 11. Topic channel result
-  it('11. Topic channel should receive Topic bonus (+8)', () => {
-    const cand = {
-      title: 'Starboy',
-      uploader: 'The Weeknd - Topic',
-      duration: 230
-    };
-    const res = scoreCandidate(baseSpotifyTrack, cand);
-    expect(res.bonuses).toContain('Official Topic Channel (+8)');
+  it('removes a credited feature without erasing unknown title text', () => {
+    expect(canonicalTitle('Scissor Redemption (feat. Namichie)', ['Namichie'])).toBe('Scissor Redemption');
+    expect(canonicalTitle('Song (feat. Unknown)', ['Known Artist'])).toContain('Unknown');
   });
 
-  // 12. music video with slightly different duration
-  it('12. duration diff <= 4s should score +15 bonus', () => {
-    const cand = {
-      title: 'Starboy (Official Music Video)',
-      uploader: 'TheWeekndVEVO',
-      duration: 233
-    };
-    const res = scoreCandidate(baseSpotifyTrack, cand);
-    expect(res.bonuses).toContain('Duration diff <= 4s (+15)');
+  it('detects version markers as terms instead of substrings', () => {
+    expect(versionMarkers('Song Sped Up')).toContain('sped-up');
+    expect(versionMarkers('Song 10th Anniversary Version')).toContain('anniversary');
+    expect(versionMarkers('Special delivery audio')).not.toContain('live');
   });
 
-  // 13. same song name from two different artists
-  it('13. same song name from wrong artist should fail confidence gate', () => {
-    const cand = {
-      title: 'Starboy',
-      uploader: 'Panic! At The Disco',
-      duration: 230
-    };
-    const res = scoreCandidate(baseSpotifyTrack, cand);
-    expect(res.pass).toBe(false);
+  it('does not let a generic fan upload auto-match on identity alone', () => {
+    const candidate = { title: 'Starboy', uploader: 'Unknown Fan', artist: 'The Weeknd', duration: 230 };
+    expect(scoreCandidate(track, candidate)).toBeLessThan(80);
+    expect(confidentMatch(track, [candidate])).toBeNull();
   });
 
-  // 14. feat. artist normalization
-  it('14. normalizeArtist should handle feat. ft. & featuring', () => {
-    expect(normalizeArtist('The Weeknd feat. Daft Punk')).toBe('the weeknd daft punk');
-    expect(normalizeArtist('The Weeknd ft. Daft Punk')).toBe('the weeknd daft punk');
+  it('prefers a structured song over an otherwise equal generic result', () => {
+    const generic = official({ resultType: 'generic-video' });
+    const song = official({ resultType: 'song' });
+    expect(confidentMatch(track, [generic, song])?.candidate.resultType).toBe('song');
   });
 
-  it('normalizes common artist homoglyphs and preserves Cyrillic names', () => {
-    expect(normalizeArtist('KUβER βΔSSI')).toBe('kuber bassi');
-    expect(normalizeArtist('фрози')).toBe('фрози');
+  it('allows two credited owners to corroborate the same recording', () => {
+    const metadata = { title: 'Tum Hi Ho', primaryArtist: 'Arijit Singh', artists: ['Arijit Singh', 'Mithoon'], duration: 261 };
+    const first = { title: 'Tum Hi Ho', uploader: 'Arijit Singh', duration: 261, resultType: 'song' };
+    const second = { title: 'Tum Hi Ho', uploader: 'Mithoon - Topic', duration: 262, resultType: 'song' };
+    expect(sameRecording(metadata, first, second)).toBe(true);
+    expect(sameRecording(metadata, first, { ...second, title: 'Tum Hi Ho Remix' })).toBe(false);
   });
 
-  // 15. multi-artist Spotify track
-  it('15. multi-artist track matching all artists gets bonus', () => {
-    const cand = {
-      title: 'Starboy ft. Daft Punk',
-      uploader: 'The Weeknd - Topic',
-      duration: 230
-    };
-    const res = scoreCandidate(baseSpotifyTrack, cand);
-    expect(res.bonuses).toContain('All Artists Matched (+10)');
-  });
-
-  // 16. Spotify track whose official title itself contains "Remix"
-  it('16. Spotify track with Remix in title should NOT penalize Remix candidate', () => {
-    const remixTrack = { ...baseSpotifyTrack, title: 'Starboy (Kygo Remix)' };
-    const cand = {
-      title: 'Starboy (Kygo Remix Official Audio)',
-      uploader: 'The Weeknd - Topic',
-      duration: 230
-    };
-    const res = scoreCandidate(remixTrack, cand);
-    expect(res.penalties).not.toContain("Contains unwanted 'remix' (-60)");
-  });
-
-  // 17. Spotify track whose official title itself contains "Live"
-  it('17. Spotify track with Live in title should NOT penalize Live candidate', () => {
-    const liveTrack = { ...baseSpotifyTrack, title: 'Starboy - Live' };
-    const cand = {
-      title: 'Starboy (Live at Wembley)',
-      uploader: 'The Weeknd - Topic',
-      duration: 230
-    };
-    const res = scoreCandidate(liveTrack, cand);
-    expect(res.penalties).not.toContain("Contains unwanted 'live' (-60)");
-  });
-
-  // 18. Spotify track whose official title contains "Acoustic"
-  it('18. Spotify track with Acoustic should NOT penalize Acoustic candidate', () => {
-    const acousticTrack = { ...baseSpotifyTrack, title: 'Starboy (Acoustic)' };
-    const cand = {
-      title: 'Starboy Acoustic Version',
-      uploader: 'The Weeknd - Topic',
-      duration: 230
-    };
-    const res = scoreCandidate(acousticTrack, cand);
-    expect(res.penalties).not.toContain("Contains unwanted 'acoustic' (-30)");
-  });
-
-  // 19. Spotify track whose official title contains "Remastered"
-  it('19. Spotify track with Remastered should NOT penalize Remastered candidate', () => {
-    const remasterTrack = { ...baseSpotifyTrack, title: 'Starboy - Remastered 2020' };
-    const cand = {
-      title: 'Starboy (2020 Remastered)',
-      uploader: 'The Weeknd - Topic',
-      duration: 230
-    };
-    const res = scoreCandidate(remasterTrack, cand);
-    expect(res.penalties).not.toContain("Contains unwanted 'remastered' (-30)");
-  });
-
-  // 20. duration difference > 10 seconds
-  it('20. duration diff > 10s should penalize (-40)', () => {
-    const cand = {
-      title: 'Starboy',
-      uploader: 'The Weeknd',
-      duration: 245
-    };
-    const res = scoreCandidate(baseSpotifyTrack, cand);
-    expect(res.penalties).toContain('Duration diff > 10s (15s) (-40)');
-  });
-
-  // 21. exact ISRC match
-  it('21. exact ISRC match should award +100 bonus', () => {
-    const cand = {
-      title: 'Starboy',
-      uploader: 'The Weeknd',
-      duration: 230,
-      isrc: 'USUM71607007'
-    };
-    const res = scoreCandidate(baseSpotifyTrack, cand);
-    expect(res.bonuses).toContain('Exact ISRC (+100)');
-  });
-
-  // 22. wrong ISRC
-  it('22. wrong ISRC should penalize (-80)', () => {
-    const cand = {
-      title: 'Starboy',
-      uploader: 'The Weeknd',
-      duration: 230,
-      isrc: 'WRONGISRC123'
-    };
-    const res = scoreCandidate(baseSpotifyTrack, cand);
-    expect(res.penalties).toContain('Wrong ISRC (-80)');
-  });
-
-  // 23. two nearly equal candidates
-  it('23. prefers official Topic channel candidate over third party', () => {
-    const candA = { title: 'Starboy', uploader: 'The Weeknd - Topic', duration: 230 };
-    const candB = { title: 'Starboy', uploader: 'Music Uploader', duration: 230 };
-    const scoreA = scoreCandidate(baseSpotifyTrack, candA).score;
-    const scoreB = scoreCandidate(baseSpotifyTrack, candB).score;
-    expect(scoreA).toBeGreaterThan(scoreB);
-  });
-
-  // 24. new/low-popularity track
-  it('24. new/low-popularity track matches based on exact title and artist without view count dependency', () => {
-    const obscureTrack = { title: 'Indie Song', artist: 'Obscure Band', primaryArtist: 'Obscure Band', duration: 180 };
-    const cand = { title: 'Indie Song', uploader: 'Obscure Band - Topic', duration: 180 };
-    const res = scoreCandidate(obscureTrack, cand);
-    expect(res.pass).toBe(true);
-    expect(res.score).toBeGreaterThanOrEqual(80);
-  });
-
-  // 25. no valid candidate
-  it('25. returns pass = false when no candidate meets confidence threshold', () => {
-    const cand = { title: 'Totally Unrelated Song', uploader: 'Unknown', duration: 500 };
-    const res = scoreCandidate(baseSpotifyTrack, cand);
-    expect(res.pass).toBe(false);
-  });
-
-  // 26. candidate with matching title but wrong version
-  it('26. matching title but Nightcore version should be rejected', () => {
-    const cand = { title: 'Starboy (Nightcore Version)', uploader: 'Nightcore Channel', duration: 190 };
-    const res = scoreCandidate(baseSpotifyTrack, cand);
-    expect(res.pass).toBe(false);
-  });
-
-  // 27. candidate with punctuation differences
-  it('27. punctuation differences should normalize and match', () => {
-    expect(normalizeTitle("Starboy - (Explicit!)")).toBe("starboy explicit");
-  });
-
-  // 28. Unicode/non-English titles
-  it('28. Unicode accents in title should normalize correctly', () => {
-    expect(normalizeTitle("永遠に光れ (Everlasting Shine)")).toBe("永遠に光れ everlasting shine");
-  });
-
-  // 29. artist name punctuation differences
-  it('29. artist punctuation differences should normalize and match', () => {
-    expect(normalizeArtist("AC/DC")).toBe("ac dc");
-  });
-
-  // 30. track with "(feat. X)" formatting differences
-  it('30. track with feat. formatting should normalize primary artist', () => {
-    expect(normalizeArtist("Taylor Swift (feat. Bon Iver)")).toBe("taylor swift bon iver");
-  });
-
-  it('rejects a low-overlap title even when artist and duration look plausible', () => {
-    const candidate = { title: 'Starboy Documentary Interview', uploader: 'The Weeknd', duration: 230 };
-    const result = scoreCandidate({ ...baseSpotifyTrack, title: 'Starboy After Hours' }, candidate);
-    expect(titleCoverage('Starboy After Hours', candidate.title)).toBeLessThan(0.65);
-    expect(result.pass).toBe(false);
-  });
-
-  it('rejects a clean upload when the Spotify track is explicit', () => {
-    const candidate = { title: 'Starboy Clean Version', uploader: 'The Weeknd - Topic', duration: 230 };
-    const result = scoreCandidate({ ...baseSpotifyTrack, explicit: true }, candidate);
-    expect(result.penalties).toContain('Clean version does not match explicit track (-80)');
-    expect(result.pass).toBe(false);
-  });
-
-  it('keeps usable search entries when another result is inaccessible', () => {
-    expect(SEARCH_OPTIONS.flatPlaylist).toBe(true);
-    expect(SEARCH_OPTIONS.ignoreErrors).toBe(true);
-    expect(SEARCH_OPTIONS.skipDownload).toBe(true);
-    expect(SEARCH_OPTIONS.jsRuntimes).toBe('node');
-    expect(SEARCH_OPTIONS.remoteComponents).toBe('ejs:github');
-  });
-
-  it('does not treat a featured-artist credit as missing song-title words', () => {
-    const track = {
-      title: 'Scissor Redemption (feat. なみちえ)',
-      artist: 'Taku Iwasaki, Namichie',
-      primaryArtist: 'Taku Iwasaki',
-      artists: ['Taku Iwasaki', 'Namichie'],
-      duration: 142
-    };
-    const candidate = { title: 'Scissor Redemption', uploader: 'Taku Iwasaki - Topic', duration: 143 };
-    expect(stripFeaturedArtists(track.title)).toBe('Scissor Redemption');
-    expect(scoreCandidate(track, candidate).pass).toBe(true);
-  });
-
-  it('normalizes accented artist aliases consistently', () => {
-    expect(normalizeArtist("L'Orchestra Cinématique")).toBe(normalizeArtist("L'Orchestra Cinematique"));
-  });
-
-  it('accepts an official Topic upload owned by another credited artist', () => {
-    const track = {
-      title: 'Brawl Stars Menu Theme Cinematic/Orchestra',
-      artist: 'Kevin Jaret Hernandez Martinez, Hatkuvi',
-      primaryArtist: 'Kevin Jaret Hernandez Martinez',
-      artists: ['Kevin Jaret Hernandez Martinez', 'Hatkuvi'],
-      duration: 182
-    };
-    const candidate = { title: track.title, uploader: 'Hatkuvi - Topic', duration: 183 };
-    expect(scoreCandidate(track, candidate).pass).toBe(true);
-  });
-
-  it('recognizes equivalent soundtrack descriptor titles with exact artist and duration', () => {
-    const track = { title: 'Gravity Falls - Symphonic Version', artist: 'Imperial Orchestra', primaryArtist: 'Imperial Orchestra', duration: 138 };
-    const candidate = { title: 'Gravity Falls | Imperial Orchestra | Cinema Medley 3', uploader: 'Imperial Orchestra', duration: 138 };
-    expect(scoreCandidate(track, candidate).pass).toBe(true);
-  });
-
-  it('treats uploads owned by different credited artists as the same recording', () => {
-    const metadata = {
-      title: 'Tum Hi Ho',
-      artist: 'Arijit Singh, Mithoon',
-      primaryArtist: 'Arijit Singh',
-      artists: ['Arijit Singh', 'Mithoon'],
-      duration: 261
-    };
-    const first = { candidate: { title: 'Tum Hi Ho', uploader: 'Arijit Singh', duration: 261 } };
-    const second = { candidate: { title: 'Tum Hi Ho', uploader: 'Mithoon - Topic', duration: 262 } };
-    expect(sameRecordingIdentity(first, second, metadata)).toBe(true);
-  });
-
-  it('keeps different versions ambiguous even when artist and base title match', () => {
-    const metadata = { title: 'Tum Hi Ho', artists: ['Arijit Singh'], duration: 261 };
-    const original = { candidate: { title: 'Tum Hi Ho', uploader: 'Arijit Singh', duration: 261 } };
-    const remix = { candidate: { title: 'Tum Hi Ho Remix', uploader: 'Arijit Singh', duration: 260 } };
-    expect(sameRecordingIdentity(original, remix, metadata)).toBe(false);
-  });
-
-  it('matches Spotify soundtrack catalogue qualifiers to the base YouTube title', () => {
-    const track = { title: 'Makhna - From "Drive"', artist: 'Tanishk Bagchi, Yasser Desai', primaryArtist: 'Tanishk Bagchi', artists: ['Tanishk Bagchi', 'Yasser Desai'], duration: 183 };
-    const candidate = { title: 'Makhna', uploader: 'Tanishk Bagchi - Topic', duration: 183 };
-    expect(scoreCandidate(track, candidate).pass).toBe(true);
-  });
-
-  it('matches parenthesized featured artists without weakening version checks', () => {
-    const track = { title: 'STAY (with Justin Bieber)', artist: 'The Kid LAROI, Justin Bieber', primaryArtist: 'The Kid LAROI', artists: ['The Kid LAROI', 'Justin Bieber'], duration: 142 };
-    expect(scoreCandidate(track, { title: 'STAY', uploader: 'The Kid LAROI - Topic', duration: 142 }).pass).toBe(true);
-    expect(scoreCandidate(track, { title: 'STAY Remix', uploader: 'The Kid LAROI', duration: 142 }).pass).toBe(false);
-  });
-
-  it('tolerates common romanized Hindi spelling differences', () => {
-    expect(titleCoverage('Adi Adi Raat', 'Adhi Adhi Raat')).toBe(1);
-    expect(titleCoverage('Saadda Haq', 'Sadda Haq')).toBe(1);
-    expect(titleCoverage('Sayonaara', 'Sayonara')).toBe(1);
-  });
-
-  it('strips square-bracket soundtrack catalogue qualifiers', () => {
-    const track = { title: 'Malang (Title Track) [From "Malang - Unleash The Madness"]', artist: 'Ved Sharma', primaryArtist: 'Ved Sharma', artists: ['Ved Sharma'], duration: 287 };
-    expect(scoreCandidate(track, { title: 'Malang - Title Track', uploader: 'Ved Sharma - Topic', duration: 287 }).pass).toBe(true);
-  });
-
-  it('trusts a verified channel only with matching artist, duration, and recording version', () => {
-    const track = { title: 'Chaleya', artist: 'Anirudh Ravichander, Arijit Singh', primaryArtist: 'Anirudh Ravichander', artists: ['Anirudh Ravichander', 'Arijit Singh'], duration: 200 };
-    const official = { title: 'Jawan: Chaleya (Audio) | Anirudh | Arijit Singh', uploader: 'T-Series', duration: 201, channel_is_verified: true };
-    const remix = { ...official, title: 'Jawan: Chaleya Remix' };
-    expect(trustedCandidate(scoreCandidate(track, official), track)).toBe(true);
-    expect(trustedCandidate(scoreCandidate(track, remix), track)).toBe(false);
-  });
-
-  it('does not trust a lone obscure upload even when its raw score passes', () => {
-    const track = { title: 'Let Me Be', artist: 'Mickey Singh', primaryArtist: 'Mickey Singh', artists: ['Mickey Singh'], duration: 198 };
-    const obscure = { title: 'Mickey Singh Let Me Be Official Song', uploader: 'Unknown Fan', duration: 195 };
-    const scored = scoreCandidate(track, obscure);
-    expect(scored.pass).toBe(true);
-    expect(trustedCandidate(scored, track)).toBe(false);
-  });
-
-  it('detects altered-audio markers as whole terms without substring false positives', () => {
-    expect(extractVersionMarkers('Song 3D Music')).toContain('3d');
-    expect(extractVersionMarkers('Special delivery audio')).not.toContain('live');
+  it('keeps the external search bounded and tolerant of inaccessible entries', () => {
+    expect(SEARCH_OPTIONS).toMatchObject({
+      playlistEnd: 15, flatPlaylist: true, ignoreErrors: true, skipDownload: true,
+      socketTimeout: 12, retries: 2
+    });
   });
 });

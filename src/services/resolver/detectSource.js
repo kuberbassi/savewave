@@ -27,18 +27,16 @@ function detectSource(url) {
     return { valid: true, platform: 'spotify', type: 'spotify_metadata', parsed };
   }
 
+  const unavailableSource = 'This source is not currently supported by Savewave.';
+
   // 3. Instagram
   if (isDomain('instagram.com')) {
-    const type = pathname.startsWith('/stories/') ? 'story' : pathname.includes('/reel') ? 'reel' : 'post_media';
-    if (type === 'story') return { valid: false, reason: 'Instagram Stories are private or login-gated and cannot be downloaded. Try a public post or Reel instead.', platform: 'instagram', type };
-    return { valid: true, platform: 'instagram', type, parsed };
+    return { valid: false, reason: unavailableSource, platform: 'instagram' };
   }
 
   // 4. Facebook
   if (isDomain('facebook.com') || isDomain('fb.watch')) {
-    const type = pathname.includes('/stories/') || pathname.includes('story.php') ? 'story' : pathname.includes('/reel') ? 'reel' : 'post_video';
-    if (type === 'story') return { valid: false, reason: 'Facebook Stories are private or login-gated and cannot be downloaded. Try a public video or Reel instead.', platform: 'facebook', type };
-    return { valid: true, platform: 'facebook', type, parsed };
+    return { valid: false, reason: unavailableSource, platform: 'facebook' };
   }
 
   // 5. Threads
@@ -48,7 +46,7 @@ function detectSource(url) {
 
   // 6. X / Twitter
   if (isDomain('x.com') || isDomain('twitter.com')) {
-    return { valid: true, platform: 'twitter', type: 'post_video', parsed };
+    return { valid: false, reason: unavailableSource, platform: 'twitter' };
   }
 
   // 7. SoundCloud

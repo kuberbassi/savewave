@@ -11,15 +11,12 @@ Audio selects `bestaudio/best`, extracts the audio stream, and uses its natural 
 ## Provider behavior
 
 - YouTube: individual videos and Shorts; video or audio; playlists are intentionally not expanded.
-- Instagram: public posts, Reels, single images, and ordered image/video carousels, bounded to 20 post items. Image-only carousels use the public embed documents because the video extractor intentionally rejects image entries. Savewave verifies that every carousel item resolves before saving and names them `Post title (1).jpg`, `Post title (2).jpg`, and so on without overwriting existing files.
-- Facebook: publicly resolvable videos, Reels, and multi-item post media, bounded to 20 items.
 - Threads: publicly resolvable images and videos, bounded to 20 items.
-- X/Twitter: publicly resolvable images and videos, bounded to 20 items.
 - SoundCloud: publicly resolvable audio.
 - Spotify: public track metadata plus strict external-source Smart Match on desktop and Android; Spotify does not provide the downloaded audio.
 - Direct media: supported public HTTP(S) media links only.
 
-Private, deleted, region-blocked, login-gated, cookie-only, paid, or DRM-protected media returns a normalized rejection instead of attempting a bypass.
+Instagram, Facebook, and X/Twitter are currently disabled across the website, desktop app, and APK because installed-client reliability has not met the release bar. Their links receive an unsupported-source response before extraction. Private, deleted, region-blocked, login-gated, cookie-only, paid, or DRM-protected media also returns a normalized rejection instead of attempting a bypass.
 
 ## Spotify Smart Match
 
@@ -39,7 +36,7 @@ npm run test:spotify-playlist -- PLAYLIST_ID
 
 Live provider checks are supplementary; ordinary CI uses mocks and deterministic fixtures.
 
-The ignored native Instagram live test resolves and downloads the seven-image regression carousel used during development:
+The ignored native Instagram live test remains as historical regression coverage, not as evidence of currently supported behavior:
 
 ```bash
 cargo test --manifest-path src-tauri/Cargo.toml gallery::tests::resolves_known_public_seven_image_carousel_live -- --ignored --exact

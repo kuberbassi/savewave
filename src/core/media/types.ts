@@ -14,9 +14,11 @@ export interface ResolvedMedia {
   qualityLabel: string;
   sourceUrl: string;
   fallbackSourceUrls?: string[];
+  selectionRequired?: boolean;
+  matchOptions?: Array<{ sourceUrl: string; title: string; creator: string; duration?: number; score: number }>;
 }
 
-export interface DownloadRequest { url: string; mode: MediaMode; title?: string; }
+export interface DownloadRequest { url: string; mode: MediaMode; title?: string; source?: MediaSource; }
 export interface DownloadJob { jobId: string; state: DownloadState; }
 export interface DownloadProgress {
   jobId: string;
@@ -27,6 +29,7 @@ export interface DownloadProgress {
   speed?: number;
   eta?: number;
   filename?: string;
+  filenames?: string[];
   errorCode?: string;
   errorMessage?: string;
 }
@@ -36,5 +39,5 @@ export interface PlatformCapabilities {
   platform: PlatformType;
   sources: Record<MediaSource, SourceCapability>;
 }
-export interface EngineStatus { available: boolean; initializing?: boolean; version: string; engineVersion?: string; ffmpegVersion?: string; updateAvailable?: boolean; }
+export interface EngineStatus { available: boolean; initializing?: boolean; version: string; engineVersion?: string; ffmpegVersion?: string; updateAvailable?: boolean; error?: string; }
 export interface ReleaseInfo { version: string; downloadUrl: string; windowsDownloadUrl?: string; androidDownloadUrl?: string; releaseUrl: string; changelogUrl: string; summary: string; updateAvailable: boolean; }

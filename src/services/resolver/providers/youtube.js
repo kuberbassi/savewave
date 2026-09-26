@@ -10,6 +10,15 @@ const { extractionOptions } = require('../utils/providerMedia');
 
 async function resolveYouTube(url, mode = 'video') {
   let info = null;
+  // YouTube currently gives some public Shorts an API 403 at /shorts/ even
+  // though the same video is available at its canonical watch endpoint.
+  try {
+    const parsed = new URL(url);
+    const short = /^\/shorts\/([A-Za-z0-9_-]{11})\/?$/.exec(parsed.pathname);
+    if ((parsed.hostname === 'youtube.com' || parsed.hostname.endsWith('.youtube.com')) && short) {
+      url = `https://www.youtube.com/watch?v=${short[1]}`;
+    }
+  } catch { /* URL validation happens before this provider. */ }
 
   try {
     info = await ytdlp(url, {
@@ -29,8 +38,11 @@ async function resolveYouTube(url, mode = 'video') {
     if (/private|sign in|login|members-only|age.?restricted/i.test(detail)) {
       throw new Error('YouTube cannot download private, login-gated, or age-restricted media. Try a public video instead.');
     }
-    if (/enoent|not found|permission denied/i.test(detail)) {
-      throw new Error('The YouTube extraction engine is unavailable on this deployment.');
+    if (/enoent|permission denied|system cannot find the path specified/i.test(detail)) {
+      throw new Error('ENGINE_UNAVAILABLE');
+    }
+    if (/video is unavailable|video unavailable|video not found/i.test(detail)) {
+      throw new Error('SOURCE_NOT_FOUND');
     }
     throw new Error('YouTube could not resolve this public video right now. Please retry shortly.');
   }

@@ -5,4 +5,8 @@ export function identityQuery(track: TrackIdentity, primaryOnly?: boolean): stri
 export function searchStages(track: TrackIdentity): SearchStage[];
 export function dedupeCandidates(candidates: MatchCandidate[]): MatchCandidate[];
 export type ResolvedSpotifyMatch = CandidateEvaluation & { alternatives?: MatchCandidate[] };
+export type SpotifyDecision =
+  | { status: 'matched'; match: ResolvedSpotifyMatch }
+  | { status: 'ambiguous' | 'rejected'; candidates: Array<CandidateEvaluation & { index: number }> };
+export function resolveSpotifyDecision(track: TrackIdentity, adapter: MusicSearchAdapter): Promise<SpotifyDecision>;
 export function resolveSpotifySource(track: TrackIdentity, adapter: MusicSearchAdapter): Promise<ResolvedSpotifyMatch | null>;

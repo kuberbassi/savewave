@@ -1,4 +1,6 @@
 const TRACK_ID_PATTERN = /open\.spotify\.com\/track\/([a-zA-Z0-9]{22})/;
+const MAX_METADATA_BYTES = 1_000_000;
+const MAX_TEXT_LENGTH = 300;
 
 function parseTrackId(url) {
   const match = String(url || '').match(TRACK_ID_PATTERN);
@@ -60,8 +62,9 @@ function extractEmbedMetadata(html) {
       album: String(entity?.album?.name || entity?.album?.title || '').trim(),
       duration: Number.isFinite(entity.duration) ? Math.round(entity.duration / 1000) : null,
       releaseDate: entity?.releaseDate?.isoString || null,
-      explicit: Boolean(entity.isExplicit),
+      explicit: typeof entity.isExplicit === 'boolean' ? entity.isExplicit : undefined,
       playable: entity.isPlayable !== false,
+      isrc: String(entity?.externalIds?.isrc || entity?.isrc || '').trim() || null,
       thumbnail,
       previewUrl: entity?.audioPreview?.url || null
     };
@@ -72,6 +75,61 @@ function extractEmbedMetadata(html) {
 
 async function fetchWithTimeout(url, options = {}) {
   return fetch(url, { ...options, signal: AbortSignal.timeout(8000) });
+}
+
+async function boundedText(response) {
+  const declared = Number(response.headers.get('content-length') || 0);
+  if (declared > MAX_METADATA_BYTES) throw new Error('Spotify metadata response is too large.');
+  const text = await response.text();
+  if (text.length > MAX_METADATA_BYTES) throw new Error('Spotify metadata response is too large.');
+  return text;
+}
+
+async function safeJson(response) {
+  try { return JSON.parse(await boundedText(response)); }
+  catch { return {}; }
+}
+
+function cleanText(value, limit = MAX_TEXT_LENGTH) {
+  const text = String(value || '').replace(/\s+/g, ' ').trim();
+  return text && text.length <= limit ? text : '';
+}
+
+function safePublicUrl(value) {
+  try {
+    const parsed = new URL(String(value || ''));
+    return ['http:', 'https:'].includes(parsed.protocol) && !parsed.username && !parsed.password && parsed.href.length <= 2_048
+      ? parsed.href : null;
+  } catch { return null; }
+}
+
+function validateSpotifyMetadata(value, trackId) {
+  const title = cleanText(value?.title);
+  const artists = [...new Set((Array.isArray(value?.artists) ? value.artists : [])
+    .map((artist) => cleanText(artist, 160)).filter(Boolean))].slice(0, 20);
+  const primaryArtist = cleanText(value?.primaryArtist || artists[0], 160);
+  if (!title || !primaryArtist || !artists.length) throw new Error('Spotify did not expose enough public metadata for a safe match.');
+  const duration = Number(value?.duration);
+  const validDuration = Number.isFinite(duration) && duration >= 10 && duration <= 7_200 ? Math.round(duration) : undefined;
+  const releaseDate = cleanText(value?.releaseDate, 40) || undefined;
+  const releaseYear = /^(19|20)\d{2}/.test(releaseDate || '') ? Number(releaseDate.slice(0, 4)) : undefined;
+  const isrc = /^[A-Z]{2}[A-Z0-9]{3}\d{7}$/i.test(String(value?.isrc || '')) ? String(value.isrc).toUpperCase() : undefined;
+  return {
+    trackId,
+    title,
+    artist: artists.join(', '),
+    artists,
+    primaryArtist,
+    album: cleanText(value?.album) || undefined,
+    duration: validDuration,
+    releaseDate,
+    releaseYear,
+    explicit: typeof value?.explicit === 'boolean' ? value.explicit : undefined,
+    isrc,
+    thumbnail: safePublicUrl(value?.thumbnail),
+    previewUrl: safePublicUrl(value?.previewUrl),
+    provenance: Object.freeze({ embed: Boolean(value?.provenance?.embed), oembed: Boolean(value?.provenance?.oembed), pageFallback: Boolean(value?.provenance?.pageFallback) })
+  };
 }
 
 async function getSpotifyMetadata(url) {
@@ -86,15 +144,17 @@ async function getSpotifyMetadata(url) {
 
   const oembedResponse = oembedResult.status === 'fulfilled' ? oembedResult.value : null;
   const embedResponse = embedResult.status === 'fulfilled' ? embedResult.value : null;
-  const oembed = oembedResponse?.ok ? await oembedResponse.json() : {};
-  const embed = embedResponse?.ok ? extractEmbedMetadata(await embedResponse.text()) : null;
+  const oembed = oembedResponse?.ok ? await safeJson(oembedResponse) : {};
+  const embed = embedResponse?.ok ? extractEmbedMetadata(await boundedText(embedResponse)) : null;
 
   let fallbackArtist = '';
   if (!embed?.artist) {
     try {
       const pageResponse = await fetchWithTimeout(url, { headers: { 'User-Agent': 'Mozilla/5.0 Savewave/1.0' } });
-      if (pageResponse.ok) fallbackArtist = extractArtistFromHtml(await pageResponse.text());
-    } catch {}
+      if (pageResponse.ok) fallbackArtist = extractArtistFromHtml(await boundedText(pageResponse));
+    } catch {
+      // The embed/oEmbed result remains authoritative when the public page fallback fails.
+    }
   }
 
   const title = String(embed?.title || oembed.title || '').trim();
@@ -105,19 +165,19 @@ async function getSpotifyMetadata(url) {
   if (!title || !artist) throw new Error('Spotify did not expose enough public metadata for a safe match.');
   if (embed && !embed.playable) throw new Error('This Spotify track is not publicly playable in the current region.');
 
-  return {
+  return validateSpotifyMetadata({
     title,
-    artist,
     artists,
     primaryArtist: artists[0] || artist,
     album: embed?.album || '',
-    duration: embed?.duration || null,
-    releaseDate: embed?.releaseDate || null,
-    explicit: embed?.explicit || false,
-    isrc: null,
+    duration: embed?.duration,
+    releaseDate: embed?.releaseDate,
+    explicit: embed?.explicit,
+    isrc: embed?.isrc,
     thumbnail: embed?.thumbnail || oembed.thumbnail_url || null,
-    previewUrl: embed?.previewUrl || null
-  };
+    previewUrl: embed?.previewUrl || null,
+    provenance: { embed: Boolean(embed), oembed: Boolean(oembedResponse?.ok), pageFallback: Boolean(fallbackArtist) }
+  }, trackId);
 }
 
-module.exports = { decodeHtml, extractArtistFromHtml, extractEmbedMetadata, getSpotifyMetadata, parseTrackId };
+module.exports = { boundedText, decodeHtml, extractArtistFromHtml, extractEmbedMetadata, getSpotifyMetadata, parseTrackId, validateSpotifyMetadata };

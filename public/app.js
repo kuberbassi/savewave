@@ -3,11 +3,9 @@ const {
   useEffect,
   useRef
 } = React;
-const HISTORY_STORAGE_KEY = 'savewave_local_history';
 const HISTORY_STORAGE_LIMIT = 50;
 const HISTORY_PAGE_SIZE = 8;
 const RESOLVE_TIMEOUT_MS = 30000;
-const DOWNLOAD_PREPARE_TIMEOUT_MS = 45000;
 const {
   platforms: SUPPORTED_PLATFORMS,
   tickerItems: TICKER_ITEMS,
@@ -287,36 +285,43 @@ const SavewaveApp = () => {
       ...current,
       state: 'checking'
     }));
+    let timeoutId;
     try {
-      const status = await engineRef.current.getEngineStatus();
+      const status = await Promise.race([engineRef.current.getEngineStatus(), new Promise((_, reject) => {
+        timeoutId = setTimeout(() => reject(new Error('Engine status check timed out.')), 12000);
+      })]);
       setEngineStatus({
         state: status.available ? 'ready' : status.initializing ? 'checking' : 'missing',
         platform: engineRef.current.getPlatform(),
         ...status
       });
       if (status.available) engineRetryCountRef.current = 0;
-    } catch (_error) {
+    } catch (error) {
       setEngineStatus({
         state: 'missing',
         platform: engineRef.current.getPlatform(),
-        version: null
+        version: null,
+        error: error?.message || 'Engine status check failed.'
       });
+    } finally {
+      clearTimeout(timeoutId);
     }
   };
   useEffect(() => {
     checkEngine(true);
     engineRef.current.getReleaseInfo().then(release => {
       if (!release?.updateAvailable) return;
+      const isDesktopUpdate = engineRef.current.getPlatform() === 'desktop';
       setModalConfig({
         isOpen: true,
-        title: `SAVEWAVE ${release.version} AVAILABLE`,
-        message: release.summary || 'A newer stable Savewave client is available. Update to receive reliability, compatibility, and security fixes.',
-        primaryAction: {
-          label: 'DOWNLOAD UPDATE',
+        title: `UPDATE ${release.version} AVAILABLE`,
+        message: isDesktopUpdate ? `${release.summary} Savewave will verify and install this update automatically. Your downloads are preserved.` : `${release.summary} Android will ask you to confirm installation. Install over this app to preserve its data; do not uninstall first.`,
+        primaryAction: isDesktopUpdate ? null : {
+          label: 'GET ANDROID UPDATE',
           onClick: () => window.SavewaveCore.openExternal(release.downloadUrl)
         },
         secondaryAction: {
-          label: 'VIEW CHANGES',
+          label: 'RELEASE NOTES',
           onClick: () => window.SavewaveCore.openExternal(release.changelogUrl)
         }
       });
@@ -344,7 +349,7 @@ const SavewaveApp = () => {
       checkEngine(true);
     }, delay);
     return () => clearInterval(timer);
-  }, [engineStatus.state]);
+  }, [engineStatus.state, engineStatus.platform]);
   const navigateToTab = tabName => {
     setActiveTab(tabName);
     if (tabName === 'history') setVisibleHistoryCount(HISTORY_PAGE_SIZE);
@@ -353,9 +358,6 @@ const SavewaveApp = () => {
         behavior: 'smooth'
       });
     }
-  };
-  const scrollToDownloader = () => {
-    navigateToTab('downloader');
   };
   const showAlert = (message, title = 'SYSTEM NOTICE') => {
     setModalConfig({
@@ -394,7 +396,9 @@ const SavewaveApp = () => {
         timestamp: Date.now(),
         localReference: item.filename || undefined
       }).catch(() => {});
-    } catch (e) {}
+    } catch (_error) {
+      // History is best-effort and must never interrupt a completed download.
+    }
   };
   const clearLocalHistory = () => {
     setClientHistory([]);
@@ -419,46 +423,44 @@ const SavewaveApp = () => {
       setPlatformInfo(null);
       return;
     }
-    const lower = val.toLowerCase();
-    if (lower.includes('spotify.com')) {
+    const source = window.SavewaveCore.detectSource(val);
+    if (source === 'spotify') {
       setPlatformInfo({
         name: 'SPOTIFY MATCH',
         icon: 'SPOTIFY',
         isAudioOnly: true
       });
       setMode('audio');
-    } else if (lower.includes('soundcloud.com')) {
+    } else if (source === 'soundcloud') {
       setPlatformInfo({
         name: 'SOUNDCLOUD',
         icon: 'SOUNDCLOUD',
         isAudioOnly: true
       });
       setMode('audio');
-    } else if (lower.includes('youtube.com') || lower.includes('youtu.be')) {
+    } else if (source === 'youtube') {
       setPlatformInfo({
         name: 'YOUTUBE',
         icon: 'YOUTUBE'
       });
-    } else if (lower.includes('instagram.com')) {
+    } else if (source === 'instagram' || source === 'facebook' || source === 'twitter') {
+      const labels = {
+        instagram: 'INSTAGRAM',
+        facebook: 'FACEBOOK',
+        twitter: 'X / TWITTER'
+      };
       setPlatformInfo({
-        name: 'INSTAGRAM',
-        icon: 'INSTAGRAM'
+        name: `${labels[source]} UNAVAILABLE`,
+        icon: source.toUpperCase(),
+        isUnavailable: true
       });
-    } else if (lower.includes('facebook.com') || lower.includes('fb.watch')) {
-      setPlatformInfo({
-        name: 'FACEBOOK',
-        icon: 'FACEBOOK'
-      });
-    } else if (lower.includes('threads.net')) {
+    } else if (source === 'threads') {
       setPlatformInfo({
         name: 'THREADS',
-        icon: 'THREADS'
+        icon: 'THREADS',
+        isOriginalPost: true
       });
-    } else if (lower.includes('twitter.com') || lower.includes('x.com')) {
-      setPlatformInfo({
-        name: 'X / TWITTER',
-        icon: 'TWITTER'
-      });
+      setMode('video');
     } else {
       setPlatformInfo({
         name: 'DIRECT MEDIA',
@@ -479,6 +481,10 @@ const SavewaveApp = () => {
     const requestedUrl = url.trim();
     const requestedMode = mode;
     if (!requestedUrl || loading) return;
+    if (window.SavewaveCore.isUnavailableSource(window.SavewaveCore.detectSource(requestedUrl))) {
+      showAlert('This source is not currently supported by Savewave.', 'SOURCE UNAVAILABLE');
+      return;
+    }
     if (engineStatus.state !== 'ready') {
       showAlert('The local media engine is unavailable.', 'ENGINE NOT READY');
       return;
@@ -494,17 +500,60 @@ const SavewaveApp = () => {
       setResolveProgress(value => Math.min(value + Math.max(2, (88 - value) * 0.12), 88));
     }, 350);
     try {
-      const data = await engineRef.current.resolveMedia(requestedUrl, requestedMode);
-      setMediaInfo(data);
-      setResolvedInput({
-        url: requestedUrl,
-        mode: requestedMode
-      });
+      const data = await window.SavewaveCore.withAbort(engineRef.current.resolveMedia(requestedUrl, requestedMode), controller.signal);
+      if (controller.signal.aborted || resolveRequestRef.current !== controller) return;
+      const applyResolvedMedia = resolved => {
+        setMediaInfo(resolved);
+        setResolvedInput({
+          url: requestedUrl,
+          mode: requestedMode
+        });
+      };
+      if (data.selectionRequired && data.matchOptions?.length === 2) {
+        const remembered = window.SavewaveCore.recallSpotifyChoice(requestedUrl, data.matchOptions);
+        const describe = (option, index) => `${index + 1}. ${option.title} — ${option.creator}${option.duration ? ` (${Math.floor(option.duration / 60)}:${String(Math.round(option.duration % 60)).padStart(2, '0')})` : ''}`;
+        const choose = option => {
+          window.SavewaveCore.rememberSpotifyChoice(requestedUrl, option.sourceUrl);
+          applyResolvedMedia({
+            ...data,
+            selectionRequired: false,
+            matchOptions: [],
+            sourceUrl: option.sourceUrl,
+            qualityLabel: 'Explicitly selected match'
+          });
+          closeModal();
+        };
+        if (remembered) {
+          applyResolvedMedia({
+            ...data,
+            selectionRequired: false,
+            matchOptions: [],
+            sourceUrl: remembered.sourceUrl,
+            qualityLabel: 'Previously selected match'
+          });
+        } else {
+          setModalConfig({
+            isOpen: true,
+            title: 'CHOOSE THE CORRECT RECORDING',
+            message: `Savewave found two equally strong matches and will not guess. ${data.matchOptions.map(describe).join('  •  ')}`,
+            primaryAction: {
+              label: 'USE OPTION 1',
+              onClick: () => choose(data.matchOptions[0])
+            },
+            secondaryAction: {
+              label: 'USE OPTION 2',
+              onClick: () => choose(data.matchOptions[1])
+            }
+          });
+        }
+      } else {
+        applyResolvedMedia(data);
+      }
       setResolveProgress(100);
     } catch (err) {
       if (controller.signal.aborted && resolveRequestRef.current !== controller) return;
       const normalized = window.SavewaveCore.normalizeError(err);
-      const message = err && err.name === 'AbortError' ? 'The resolver took too long. Please retry in a moment.' : normalized.message;
+      const message = controller.signal.aborted || err && err.name === 'AbortError' ? 'The resolver took too long. Please retry in a moment.' : normalized.message;
       showAlert(message, normalized.code === 'MATCH_CONFIDENCE_LOW' ? 'MATCH NOT CONFIDENT' : 'EXTRACTION ERROR');
     } finally {
       clearTimeout(timeout);
@@ -521,7 +570,7 @@ const SavewaveApp = () => {
 
   // Download trigger
   const startNativeDownload = async () => {
-    if (!mediaInfo || !resolvedInput || downloading) return;
+    if (!mediaInfo || !resolvedInput || mediaInfo.selectionRequired || downloading) return;
     if (resolvedInput.url !== url.trim() || resolvedInput.mode !== mode) {
       setMediaInfo(null);
       setResolvedInput(null);
@@ -530,51 +579,24 @@ const SavewaveApp = () => {
     }
     setDownloading(true);
     setDownloadProgress(12);
-    const interval = setInterval(() => {
-      if (document.hidden) return;
-      setDownloadProgress(prev => {
-        if (prev >= 90) {
-          clearInterval(interval);
-          return 90;
-        }
-        return Math.min(prev + Math.max(2, (90 - prev) * 0.14), 90);
-      });
-    }, 300);
+    const controller = new AbortController();
+    downloadRequestRef.current = controller;
     try {
-      const sourceUrls = [...new Set([mediaInfo.sourceUrl || resolvedInput.url, ...(mediaInfo.fallbackSourceUrls || [])])].slice(0, 3);
-      let completed = null;
-      let lastError = null;
-      for (let sourceIndex = 0; sourceIndex < sourceUrls.length; sourceIndex += 1) {
-        try {
-          const job = await engineRef.current.downloadMedia({
-            url: sourceUrls[sourceIndex],
-            mode,
-            title: mediaInfo.title
-          });
-          activeJobRef.current = job.jobId;
-          setActiveJobId(job.jobId);
-          completed = await engineRef.current.getDownloadProgress(job.jobId);
-          while (!['completed', 'cancelled', 'error'].includes(completed.state)) {
-            if (Number.isFinite(completed.percent)) setDownloadProgress(completed.percent);
-            await new Promise(resolveDelay => setTimeout(resolveDelay, document.hidden ? 2000 : 750));
-            completed = await engineRef.current.getDownloadProgress(job.jobId);
-          }
-          if (completed.state === 'cancelled') throw Object.assign(new Error('Download cancelled.'), {
-            code: 'CANCELLED'
-          });
-          if (completed.state === 'error') throw Object.assign(new Error(completed.errorMessage || 'Download failed.'), {
-            code: completed.errorCode || 'DOWNLOAD_FAILED'
-          });
-          lastError = null;
-          break;
-        } catch (attemptError) {
-          lastError = attemptError;
-          const retryable = ['SOURCE_UNAVAILABLE', 'SOURCE_REJECTED', 'DOWNLOAD_FAILED'].includes(attemptError.code);
-          if (!retryable || sourceIndex === sourceUrls.length - 1) throw attemptError;
-          setDownloadProgress(12);
+      const completed = await window.SavewaveCore.runDownload({
+        engine: engineRef.current,
+        media: mediaInfo,
+        originalUrl: resolvedInput.url,
+        mode,
+        signal: controller.signal,
+        pollIntervalMs: document.hidden ? 2000 : 750,
+        onProgress: progress => {
+          if (Number.isFinite(progress.percent)) setDownloadProgress(progress.percent);
+        },
+        onJobChange: jobId => {
+          activeJobRef.current = jobId;
+          setActiveJobId(jobId);
         }
-      }
-      if (lastError || !completed) throw lastError || new Error('Download failed.');
+      });
       setDownloadProgress(100);
       saveToLocalHistory({
         id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
@@ -586,15 +608,17 @@ const SavewaveApp = () => {
         timestamp: Date.now(),
         filename: completed.filename
       });
-      showAlert(`${completed.filename || mediaInfo.title} was saved to your Downloads folder.`, 'DOWNLOAD COMPLETE');
+      const savedCount = completed.filenames?.length || 1;
+      const completionMessage = savedCount > 1 ? `${savedCount} items were saved to your Downloads folder.` : `${completed.filename || mediaInfo.title} was saved to your Downloads folder.`;
+      showAlert(completionMessage, 'DOWNLOAD COMPLETE');
     } catch (error) {
       const normalized = window.SavewaveCore.normalizeError(error);
       const message = error.name === 'AbortError' ? 'Download preparation took too long. Please retry.' : error.message && error.message !== error.code ? error.message : normalized.message;
       showAlert(message, 'DOWNLOAD ERROR');
     } finally {
+      downloadRequestRef.current = null;
       activeJobRef.current = null;
       setActiveJobId(null);
-      clearInterval(interval);
       setTimeout(() => {
         setDownloading(false);
         setDownloadProgress(0);
@@ -602,10 +626,7 @@ const SavewaveApp = () => {
     }
   };
   const cancelDownload = async () => {
-    if (!activeJobRef.current) return;
-    try {
-      await engineRef.current.cancelDownload(activeJobRef.current);
-    } catch (_error) {}
+    downloadRequestRef.current?.abort();
   };
   return /*#__PURE__*/React.createElement("div", {
     className: "relative z-10 min-h-screen flex flex-col justify-between"
@@ -619,7 +640,7 @@ const SavewaveApp = () => {
     secondaryAction: modalConfig.secondaryAction,
     onClose: closeModal
   }), /*#__PURE__*/React.createElement("nav", {
-    className: "relative z-20 border-b border-black/20 px-4 sm:px-6 md:px-12 py-4 md:py-5 flex items-center justify-between gap-3"
+    className: "relative z-20 border-b border-black/20 px-4 sm:px-6 md:px-12 py-4 md:py-5 grid grid-cols-[1fr_auto_1fr] items-center gap-3"
   }, /*#__PURE__*/React.createElement("div", {
     className: "flex items-center gap-3"
   }, /*#__PURE__*/React.createElement("img", {
@@ -642,11 +663,7 @@ const SavewaveApp = () => {
   }, "Local History"), /*#__PURE__*/React.createElement("button", {
     onClick: () => navigateToTab('privacy'),
     className: `nav-link-item ${activeTab === 'privacy' ? 'active-nav text-black' : ''}`
-  }, "Privacy")), /*#__PURE__*/React.createElement(RigButton, {
-    variant: "primary",
-    className: "px-4 sm:px-6",
-    onClick: () => navigateToTab('downloader')
-  }, "OPEN APP")), /*#__PURE__*/React.createElement("div", {
+  }, "Privacy"))), /*#__PURE__*/React.createElement("div", {
     className: "mobile-tabs relative z-20 md:hidden",
     "aria-label": "Application sections"
   }, ['downloader', 'history', 'privacy'].map(tab => /*#__PURE__*/React.createElement("button", {
@@ -727,7 +744,9 @@ const SavewaveApp = () => {
     href: APP_INSTALL_URL,
     target: "_blank",
     rel: "noopener noreferrer"
-  }, /Android/i.test(navigator.userAgent) ? 'GET SAVEWAVE FOR ANDROID' : 'DOWNLOAD SAVEWAVE'))), /*#__PURE__*/React.createElement("form", {
+  }, /Android/i.test(navigator.userAgent) ? 'GET SAVEWAVE FOR ANDROID' : 'DOWNLOAD SAVEWAVE')), engineStatus.state === 'missing' && engineStatus.platform !== 'web' && /*#__PURE__*/React.createElement("div", {
+    className: "helper-actions"
+  }, /*#__PURE__*/React.createElement("span", null, engineStatus.error || 'The local engine could not start.', " Restart Savewave; if this persists, send the Android log."))), /*#__PURE__*/React.createElement("form", {
     onSubmit: handleResolve
   }, /*#__PURE__*/React.createElement("div", {
     className: "flex flex-col md:flex-row gap-3"
@@ -758,7 +777,7 @@ const SavewaveApp = () => {
   }), platformInfo.name))), /*#__PURE__*/React.createElement(RigButton, {
     variant: "red",
     type: "submit",
-    disabled: loading || engineStatus.state !== 'ready',
+    disabled: loading || engineStatus.state !== 'ready' || platformInfo?.isUnavailable,
     className: "py-4 px-8 shrink-0"
   }, loading ? /*#__PURE__*/React.createElement("div", {
     className: "rig-spinner"
@@ -773,11 +792,17 @@ const SavewaveApp = () => {
     style: {
       width: `${resolveProgress}%`
     }
-  })), platformInfo && platformInfo.isAudioOnly ? /*#__PURE__*/React.createElement("div", {
+  })), platformInfo && platformInfo.isUnavailable ? /*#__PURE__*/React.createElement("div", {
+    className: "bg-[#0d0d0e] py-3.5 px-4 border border-white/10 mt-6 font-mono text-xs uppercase text-center text-[#e03d27] font-bold"
+  }, "This source is not currently supported by Savewave.") : platformInfo && platformInfo.isAudioOnly ? /*#__PURE__*/React.createElement("div", {
     className: "bg-[#0d0d0e] py-3.5 px-4 border border-white/10 mt-6 font-mono text-xs uppercase text-center text-[#e03d27] font-bold flex items-center justify-center gap-2"
   }, /*#__PURE__*/React.createElement(PlatformIcon, {
     name: platformInfo.icon
-  }), /*#__PURE__*/React.createElement("span", null, "AUDIO ONLY SOURCE DETECTED")) : /*#__PURE__*/React.createElement("div", {
+  }), /*#__PURE__*/React.createElement("span", null, "AUDIO ONLY SOURCE DETECTED")) : platformInfo && platformInfo.isOriginalPost ? /*#__PURE__*/React.createElement("div", {
+    className: "bg-[#0d0d0e] py-3.5 px-4 border border-white/10 mt-6 font-mono text-xs uppercase text-center text-[#e03d27] font-bold flex items-center justify-center gap-2"
+  }, /*#__PURE__*/React.createElement(PlatformIcon, {
+    name: platformInfo.icon
+  }), /*#__PURE__*/React.createElement("span", null, "ORIGINAL POST MEDIA")) : /*#__PURE__*/React.createElement("div", {
     className: "grid grid-cols-2 gap-2 bg-[#0d0d0e] p-1.5 border border-white/10 mt-6 font-mono text-xs uppercase"
   }, /*#__PURE__*/React.createElement("button", {
     type: "button",

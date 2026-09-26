@@ -1,5 +1,32 @@
 # Changelog
 
+## v1.0.13 - automatic updates and release pipeline
+
+- Windows now checks GitHub release metadata at startup, downloads the matching Electron one-click installer, verifies its published SHA-256 checksum, and starts the silent upgrade automatically. If the network or verification fails, the installed app remains usable.
+- Android now checks the release manifest through the native bridge and offers the signed APK with clear in-place installation guidance. Android's system installer still requires user confirmation.
+- The Windows release workflow now publishes the Electron installer and matching checksum instead of the retired Tauri package.
+- Corrected the Windows asset link to the versioned GitHub release path and refreshed update prompts and release documentation.
+- Removed Instagram, Facebook, and X/Twitter from the supported-source interface after repeated failures on installed desktop and Android clients.
+- Their links now show an unavailable state and are rejected before extraction or download; other sources remain available.
+
+## v1.0.12 - Spotify matching reliability
+
+### Fixed
+
+- Hide the Video/Audio mode selector for detected Instagram, Facebook, Threads, and X posts; these sources now preserve their original post media automatically.
+- Verified the three reported Spotify regressions against exact YouTube Music recordings.
+- Benchmarked all 434 entries in five real Spotify playlists and expanded safe title-first discovery for tracks that catalog-first searches miss.
+- Exercised the matcher against 1,374 unique exported Spotify tracks and safely normalized unquoted soundtrack suffixes, recovering 22 difficult matches at a 96.8 average confidence score.
+- Added bilingual-title containment, requested-version base matching, official-channel ownership, bounded exact-song duration drift, and official-audio discovery; this recovered 28 more difficult tracks while enforcing requested version markers.
+- Added explicit ambiguity handling so close matches require a user choice instead of silently selecting a questionable recording.
+- Moved Spotify metadata and YouTube Music search into the native Android bridge, avoiding WebView CORS failures.
+- Preserved the shared confidence-scored matcher across Windows and Android.
+
+### Downloads
+
+- `Savewave_1.0.12_x64-setup.exe` - Windows 10/11 64-bit installer.
+- `Savewave-android-arm64.apk` - Android 10+ ARM64 in-place update.
+
 ## v1.0.11 - YouTube download compatibility
 
 ### Fixed

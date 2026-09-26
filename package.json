@@ -1,13 +1,14 @@
 {
   "name": "savewave",
-  "version": "1.0.11",
+  "version": "1.0.13",
   "description": "Privacy-focused resolver and downloader for supported public video, audio, and image links.",
+  "author": "Kuber Bassi",
   "homepage": "https://savewave.kuberbassi.com/",
   "repository": {
     "type": "git",
     "url": "https://github.com/kuberbassi/savewave.git"
   },
-  "main": "server.js",
+  "main": "dist-electron/main.js",
   "engines": {
     "node": "22.x"
   },
@@ -16,21 +17,33 @@
     "dev": "node server.js",
     "build:css": "npx @tailwindcss/cli -i ./public/style.css -o ./public/dist.css --minify",
     "build:core": "node scripts/build-core.js",
+    "build:electron": "node scripts/build-electron.js",
+    "build:capacitor": "node scripts/prepare-capacitor.js",
     "build:js": "babel public/app.jsx --out-file public/app.js && babel public/landing.jsx --out-file public/landing.js",
     "build:vendor": "node scripts/copy-vendor.js",
     "build": "npm run build:vendor && npm run build:css && npm run build:core && npm run build:js",
     "test": "vitest run --globals",
+    "test:coverage": "vitest run --coverage",
     "typecheck": "tsc --noEmit",
-    "lint": "npm run typecheck",
-    "check": "npm run typecheck && npm test && npm run build && npm run check:release",
+    "lint": "eslint . --max-warnings=0",
+    "lint:fix": "eslint . --fix",
+    "check:fast": "npm run typecheck && npm run lint && npm test",
+    "check:generated": "node scripts/check-generated.js",
+    "check": "npm run typecheck && npm run lint && npm run test:coverage && npm run check:generated && npm run check:release",
     "check:release": "node scripts/check-release-version.js",
     "prepare:sidecars": "node scripts/prepare-sidecars.js",
+    "electron:dev": "npm run build && npm run build:electron && electron .",
+    "electron:pack": "npm run build && npm run build:electron && npm run prepare:sidecars && electron-builder --win nsis",
+    "capacitor:add:android": "npm run build && npm run build:capacitor && cap add android",
+    "capacitor:sync": "npm run build && npm run build:capacitor && cap sync android",
     "tauri": "tauri",
     "tauri:dev": "npm run prepare:sidecars && tauri dev",
     "tauri:build": "npm run prepare:sidecars && tauri build",
     "test:spotify-playlist": "node scripts/benchmark-spotify-playlist.js"
   },
   "dependencies": {
+    "@capacitor/android": "^8.5.2",
+    "@capacitor/core": "^8.5.2",
     "@tauri-apps/plugin-opener": "^2.5.0",
     "express": "^4.19.2",
     "react": "^18.3.1",
@@ -43,14 +56,52 @@
     "@babel/cli": "^8.0.4",
     "@babel/core": "^8.0.1",
     "@babel/preset-react": "^8.0.1",
+    "@capacitor/cli": "^8.5.2",
+    "@eslint/js": "^9.39.0",
     "@tailwindcss/cli": "^4.3.3",
     "@tauri-apps/api": "^2.8.0",
     "@tauri-apps/cli": "^2.8.0",
+    "@vitest/coverage-v8": "^4.1.11",
+    "electron": "^44.4.3",
+    "electron-builder": "^26.15.3",
     "esbuild": "^0.28.0",
+    "eslint": "^9.39.0",
+    "eslint-plugin-react": "^7.37.5",
+    "eslint-plugin-react-hooks": "^7.0.0",
     "ffmpeg-static": "^5.2.0",
+    "globals": "^16.4.0",
     "supertest": "^7.2.2",
     "tailwindcss": "^4.3.3",
     "typescript": "^5.9.0",
+    "typescript-eslint": "^8.46.0",
     "vitest": "^4.1.10"
+  },
+  "build": {
+    "appId": "com.kuberbassi.savewave",
+    "productName": "Savewave",
+    "files": [
+      "dist-electron/**",
+      "public/**",
+      "package.json",
+      "node_modules/**"
+    ],
+    "extraResources": [
+      {
+        "from": "src-tauri/binaries/yt-dlp-x86_64-pc-windows-msvc.exe",
+        "to": "yt-dlp.exe"
+      },
+      {
+        "from": "src-tauri/binaries/ffmpeg-x86_64-pc-windows-msvc.exe",
+        "to": "ffmpeg.exe"
+      }
+    ],
+    "win": {
+      "target": "nsis",
+      "icon": "src-tauri/icons/icon.ico",
+      "artifactName": "Savewave_${version}_x64-setup.${ext}"
+    },
+    "nsis": {
+      "include": "scripts/installer.nsh"
+    }
   }
 }

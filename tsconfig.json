@@ -9,5 +9,5 @@
     "noEmit": true,
     "skipLibCheck": true
   },
-  "include": ["src/core/**/*.ts", "tests/**/*.ts"]
+  "include": ["src/core/**/*.ts", "src/desktop/**/*.ts", "tests/**/*.ts"]
 }

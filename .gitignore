@@ -31,6 +31,8 @@ Desktop.ini
 
 # Build & Coverage
 dist/
+dist-capacitor/
+dist-electron/
 build/
 coverage/
 .vercel/
@@ -46,3 +48,4 @@ src-tauri/binaries/yt-dlp-*
 src-tauri/binaries/ffmpeg-*
 src-tauri/target/
 **/.gradle/
+android/**/build/

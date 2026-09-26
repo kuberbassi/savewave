@@ -1,12 +1,13 @@
 import { invoke } from '@tauri-apps/api/core';
 import type { MediaEngine } from './types';
 import type { DownloadJob, DownloadProgress, DownloadRequest, EngineStatus, MediaMode, PlatformCapabilities, ReleaseInfo, ResolvedMedia } from '../media/types';
-import { detectSource } from '../sources/detectSource';
+import { detectSource, isUnavailableSource } from '../sources/detectSource';
+import { MediaEngineError } from '../media/errors';
 import { resolveSpotifySource, type SearchStage } from '../spotify/search';
 import { parseYouTubeMusicResults } from '../spotify/youtubeMusic';
 import type { MatchCandidate, TrackIdentity } from '../spotify/score';
 const command = <T>(name: string, payload: Record<string, unknown> = {}) => invoke<T>(`plugin:savewave-media|${name}`, payload);
-const CURRENT_VERSION = '1.0.11';
+const CURRENT_VERSION = '1.0.13';
 const RELEASE_MANIFEST = 'https://raw.githubusercontent.com/kuberbassi/savewave/main/public/client-version.json';
 const TRUSTED_RELEASE_HOSTS = new Set(['github.com', 'raw.githubusercontent.com', 'savewave.kuberbassi.com']);
 
@@ -48,6 +49,7 @@ export class AndroidMediaEngine implements MediaEngine {
     }
   }
   async resolveMedia(url: string, mode: MediaMode = 'video') {
+    if (isUnavailableSource(detectSource(url))) throw new MediaEngineError('UNSUPPORTED_SOURCE');
     if (detectSource(url) !== 'spotify') return command<ResolvedMedia>('resolveMedia', { request: { url, mode } });
     const track = await command<TrackIdentity & { thumbnail?: string }>('getSpotifyMetadata', { url });
     console.info('[Savewave SmartMatch] Spotify metadata ready', { title: track.title, artists: track.artists, duration: track.duration });
@@ -73,7 +75,10 @@ export class AndroidMediaEngine implements MediaEngine {
     const fallbackSourceUrls = (match.alternatives || []).map((candidate) => candidate.sourceUrl || candidate.url).filter((value): value is string => Boolean(value) && value !== sourceUrl);
     return { success: true, platform: 'spotify', title: track.title, creator: track.artists.join(', '), thumbnail: track.thumbnail, duration: track.duration, type: 'audio', qualityLabel: 'Verified high-confidence match', sourceUrl, fallbackSourceUrls } satisfies ResolvedMedia;
   }
-  downloadMedia(request: DownloadRequest) { return command<DownloadJob>('downloadMedia', { request }); }
+  downloadMedia(request: DownloadRequest) {
+    if (isUnavailableSource(detectSource(request.url))) throw new MediaEngineError('UNSUPPORTED_SOURCE');
+    return command<DownloadJob>('downloadMedia', { request });
+  }
   cancelDownload(jobId: string) { return command<void>('cancelDownload', { jobId }); }
   getDownloadProgress(jobId: string) { return command<DownloadProgress>('getDownloadProgress', { jobId }); }
 }

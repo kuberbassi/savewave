@@ -4,6 +4,12 @@ const isDomain = (host: string, domain: string) => host === domain || host.endsW
 export function normalizeUrl(value: string): URL | null {
   try { const parsed = new URL(String(value || '').trim()); return ['http:', 'https:'].includes(parsed.protocol) ? parsed : null; } catch { return null; }
 }
+export function canonicalMediaUrl(value: string): string {
+  const url = normalizeUrl(value);
+  if (!url || !isDomain(url.hostname.toLowerCase(), 'youtube.com')) return value;
+  const short = /^\/shorts\/([A-Za-z0-9_-]{11})\/?$/.exec(url.pathname);
+  return short ? `https://www.youtube.com/watch?v=${short[1]}` : value;
+}
 export function detectSource(value: string): MediaSource {
   const url = normalizeUrl(value); if (!url) return 'unknown';
   const host = url.hostname.toLowerCase().replace(/^www\./, '');
@@ -15,4 +21,8 @@ export function detectSource(value: string): MediaSource {
   if (isDomain(host, 'soundcloud.com')) return 'soundcloud';
   if (host === 'open.spotify.com') return 'spotify';
   return directExtensions.test(url.pathname) ? 'direct' : 'unknown';
+}
+
+export function isUnavailableSource(source: MediaSource): boolean {
+  return source === 'instagram' || source === 'facebook' || source === 'twitter';
 }

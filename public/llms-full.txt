@@ -9,7 +9,7 @@ Savewave is a privacy-first local media downloader using the Paste â†’ Resolve â
 - **Shared Core**: TypeScript core handles URL source detection, capability gates, error normalization, quality policies, Spotify match scoring, and local IndexedDB history.
 - **Desktop Client**: Tauri 2 application (Rust + WebView) running bundled `yt-dlp` and `FFmpeg` sidecars in isolated temporary jobs.
 - **Android Client**: Native Android app (Kotlin) for Android 10+ with scoped `MediaStore` saving into `Downloads/Savewave`.
-- **Supported Platforms**: Public YouTube, Instagram, Facebook, Threads, X (Twitter), SoundCloud, Direct Links, and Spotify Smart Match metadata.
+- **Supported Platforms**: Public YouTube, Threads, SoundCloud, Direct Links, and Spotify Smart Match metadata. Instagram, Facebook, and X (Twitter) are not currently supported.
 - **Restrictions**: Private, login-gated, cookie-only, paid, and DRM-protected media are not supported.
 
 ## Privacy & Security

@@ -1,4 +1,4 @@
-export interface TrackIdentity { title: string; primaryArtist: string; artists: string[]; album?: string; duration?: number; isrc?: string; explicit?: boolean; }
+export interface TrackIdentity { title: string; primaryArtist: string; artists: string[]; album?: string; duration?: number; releaseYear?: number; isrc?: string; explicit?: boolean; }
 export interface MatchCandidate { videoId?: string; id?: string; url?: string; sourceUrl?: string; resultType?: 'song' | 'video' | 'generic-video'; title: string; artists?: string[]; artist?: string; author?: string; uploader?: string; album?: string; duration?: number; isrc?: string; explicit?: boolean; verified?: boolean; official?: boolean; searchStage?: string; }
 export interface CandidateEvaluation { candidate: MatchCandidate; score: number; confidence: 'very-high' | 'high' | 'low'; accepted: boolean; rejectionReasons: string[]; evidence: { title: number; artist: number; duration: number | null; album: number | null; isrcMatch: boolean; durationDiff: number | null; }; }
 export function canonicalTitle(value: string, creditedArtists?: string[]): string;

@@ -14,7 +14,9 @@ function createNormalizedResponse({
   filename = 'media.mp4',
   qualityLabel = 'Best available quality',
   isMatched = false,
-  download = {}
+  download = {},
+  selectionRequired = false,
+  matchOptions = []
 }) {
   return {
     success: Boolean(success),
@@ -27,7 +29,9 @@ function createNormalizedResponse({
     filename,
     qualityLabel,
     isMatched,
-    download
+    download,
+    selectionRequired: Boolean(selectionRequired),
+    matchOptions
   };
 }
 

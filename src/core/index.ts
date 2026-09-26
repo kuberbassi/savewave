@@ -1,5 +1,7 @@
 export * from './media/types';
 export * from './media/errors';
+export * from './media/contracts';
+export * from './media/download';
 export * from './media/filename';
 export * from './media/quality';
 export * from './media/state';
@@ -12,5 +14,7 @@ export * from './spotify/normalize';
 export * from './spotify/score';
 export * from './spotify/search';
 export * from './spotify/youtubeMusic';
+export * from './spotify/resolvedMedia';
+export * from './spotify/choices';
 export * from './history/types';
 export * from './history/webHistory';
