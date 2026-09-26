@@ -1,0 +1,6 @@
+# Generated browser bundles must have identical bytes in Windows and Linux CI.
+public/app.js text eol=lf
+public/landing.js text eol=lf
+public/core.js text eol=lf
+public/dist.css text eol=lf
+public/vendor/*.js text eol=lf
