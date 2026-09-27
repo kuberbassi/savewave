@@ -8,10 +8,10 @@ const triples = {
   'darwin-x64': 'x86_64-apple-darwin', 'darwin-arm64': 'aarch64-apple-darwin',
   'linux-x64': 'x86_64-unknown-linux-gnu', 'linux-arm64': 'aarch64-unknown-linux-gnu'
 };
-const target = process.env.TAURI_ENV_TARGET_TRIPLE || triples[`${process.platform}-${process.arch}`];
+const target = triples[`${process.platform}-${process.arch}`];
 if (!target) throw new Error(`Unsupported desktop sidecar target: ${process.platform}-${process.arch}`);
 
-const directory = path.join(process.cwd(), 'src-tauri', 'binaries');
+const directory = path.join(process.cwd(), 'assets', 'binaries');
 fs.mkdirSync(directory, { recursive: true });
 const extension = process.platform === 'win32' ? '.exe' : '';
 const ytDlp = require('yt-dlp-exec/src/constants').YOUTUBE_DL_PATH;

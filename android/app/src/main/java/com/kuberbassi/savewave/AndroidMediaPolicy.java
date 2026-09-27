@@ -30,6 +30,7 @@ final class AndroidMediaPolicy {
     }
 
     static int maxItemsForUrl(String value) throws Exception {
+        if (isInstagramReelUrl(value)) return 1;
         String host = httpUri(value).getHost().toLowerCase(Locale.ROOT);
         return isSocialHost(host) ? 20 : 1;
     }
@@ -50,10 +51,18 @@ final class AndroidMediaPolicy {
 
     static boolean isUnavailableSourceUrl(String value) throws Exception {
         String host = httpUri(value).getHost().toLowerCase(Locale.ROOT);
-        return host.equals("instagram.com") || host.endsWith(".instagram.com") ||
+        return ((host.equals("instagram.com") || host.endsWith(".instagram.com")) && !isInstagramReelUrl(value)) ||
             host.equals("facebook.com") || host.endsWith(".facebook.com") || host.equals("fb.watch") ||
             host.equals("twitter.com") || host.endsWith(".twitter.com") ||
             host.equals("x.com") || host.endsWith(".x.com");
+    }
+
+    private static boolean isInstagramReelUrl(String value) throws Exception {
+        URI uri = httpUri(value);
+        String host = uri.getHost().toLowerCase(Locale.ROOT);
+        String path = uri.getPath();
+        return (host.equals("instagram.com") || host.endsWith(".instagram.com")) &&
+            path != null && path.matches("/reels?/[A-Za-z0-9_-]{5,}/?");
     }
 
     private static boolean isSocialHost(String host) {
@@ -94,6 +103,7 @@ final class AndroidMediaPolicy {
     static String errorCode(Throwable error) {
         String message = error.getMessage() == null ? "" : error.getMessage().toLowerCase(Locale.ROOT);
         if (message.contains("cancel")) return "CANCELLED";
+        if (message.contains("empty media response")) return "SOURCE_REJECTED";
         if ((message.contains("instagram") && message.contains("no video formats found")) ||
             message.contains("instagram carousel item could not be resolved")) return "POST_IMAGES_UNSUPPORTED";
         if (message.contains("private network") || message.contains("unsupported media link")) return "INVALID_URL";

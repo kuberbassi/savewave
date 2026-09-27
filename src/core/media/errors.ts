@@ -44,6 +44,7 @@ export function classifyErrorText(value: string): ErrorCode {
   if (/cancel(?:led|ed|ation)/.test(text)) return 'CANCELLED';
   if (/instagram/.test(text) && /no video formats found/.test(text)) return 'POST_IMAGES_UNSUPPORTED';
   if (/\b429\b|too many requests|rate.?limit/.test(text)) return 'RATE_LIMITED';
+  if (/instagram sent an empty media response/.test(text)) return 'SOURCE_REJECTED';
   if (/\b403\b|forbidden|login required|log in|sign in|private (?:post|video|media|account)/.test(text)) return 'SOURCE_FORBIDDEN';
   if (/\b404\b|not found|removed|unavailable video/.test(text)) return 'SOURCE_NOT_FOUND';
   if (/no video formats found|requested format is not available/.test(text)) return 'NO_MEDIA_FOUND';

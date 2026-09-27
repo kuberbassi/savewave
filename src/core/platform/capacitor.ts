@@ -42,7 +42,7 @@ export class CapacitorMediaEngine implements MediaEngine {
   async getEngineStatus() { return parseEngineStatus(await mediaPlugin.getEngineStatus()); }
   async getReleaseInfo() { return parseReleaseInfo(await mediaPlugin.getReleaseInfo()); }
   async resolveMedia(url: string, mode: MediaMode = 'video') {
-    if (isUnavailableSource(detectSource(url))) throw new MediaEngineError('UNSUPPORTED_SOURCE');
+    if (isUnavailableSource(detectSource(url), url)) throw new MediaEngineError('UNSUPPORTED_SOURCE');
     if (detectSource(url) !== 'spotify') return parseResolvedMedia(await mediaPlugin.resolveMedia({ url: canonicalMediaUrl(url), mode }));
     const track = await mediaPlugin.getSpotifyMetadata({ url });
     const decision = await resolveSpotifyDecision(track, { search: async (stage: SearchStage) => {
@@ -57,7 +57,7 @@ export class CapacitorMediaEngine implements MediaEngine {
   }
   async downloadMedia(request: DownloadRequest) {
     const input = parseDownloadRequest(request);
-    if (isUnavailableSource(detectSource(input.url))) throw new MediaEngineError('UNSUPPORTED_SOURCE');
+    if (isUnavailableSource(detectSource(input.url), input.url)) throw new MediaEngineError('UNSUPPORTED_SOURCE');
     return parseDownloadJob(await mediaPlugin.downloadMedia({ ...input, url: canonicalMediaUrl(input.url), policy: createDownloadPolicy(input.mode, detectSource(input.url)) }));
   }
   cancelDownload(jobId: string) { return mediaPlugin.cancelDownload({ jobId }); }

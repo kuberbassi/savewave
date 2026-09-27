@@ -31,6 +31,9 @@ function detectSource(url) {
 
   // 3. Instagram
   if (isDomain('instagram.com')) {
+    if (/^\/reels?\/[a-z0-9_-]{5,}\/?$/i.test(pathname)) {
+      return { valid: true, platform: 'instagram', type: 'reel', parsed };
+    }
     return { valid: false, reason: unavailableSource, platform: 'instagram' };
   }
 

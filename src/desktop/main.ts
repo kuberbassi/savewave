@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { execFile, spawn } from 'node:child_process';
-import { mkdir, open, rm } from 'node:fs/promises';
+import { mkdir, rm } from 'node:fs/promises';
 import path from 'node:path';
 import { promisify } from 'node:util';
 import { app, BrowserWindow, ipcMain, shell } from 'electron';
@@ -19,11 +19,10 @@ import { parseDownloadRequest, parseJobId, parseMediaMode, parseRemoteUrl } from
 import { automaticFormatArguments, createDownloadPolicy } from '../core/media/quality';
 import { canonicalMediaUrl, detectSource, isUnavailableSource } from '../core/sources/detectSource';
 import { DESKTOP_CHANNELS } from './bridge';
-import { imageExtension, isTrustedSocialImage, resolveSocialImages } from './socialImages';
 import { launchWindowsInstaller, stageWindowsUpdate, trustedInstaller } from './updater';
 
 const executeFile = promisify(execFile);
-const CURRENT_VERSION = '1.0.13';
+const CURRENT_VERSION = '1.0.14';
 const RELEASE_MANIFEST = 'https://raw.githubusercontent.com/kuberbassi/savewave/main/public/client-version.json';
 const TRUSTED_EXTERNAL_HOSTS = new Set(['github.com', 'savewave.kuberbassi.com', 'kuberbassi.com', 'www.kuberbassi.com']);
 
@@ -54,7 +53,7 @@ function runtimeBinary(name: 'yt-dlp' | 'ffmpeg'): string {
   const developmentName = name === 'ffmpeg'
     ? 'ffmpeg-x86_64-pc-windows-msvc.exe'
     : 'yt-dlp-x86_64-pc-windows-msvc.exe';
-  return path.join(app.getAppPath(), 'src-tauri', 'binaries', developmentName);
+  return path.join(app.getAppPath(), 'assets', 'binaries', developmentName);
 }
 
 function versionIsNewer(candidate: string, installed: string): boolean {
@@ -125,22 +124,12 @@ async function checkAndInstallUpdate(): Promise<void> {
 }
 
 async function resolveMedia(url: string, mode: MediaMode): Promise<ResolvedMedia> {
-  if (isUnavailableSource(detectSource(url))) throw new Error('UNSUPPORTED_SOURCE');
+  if (isUnavailableSource(detectSource(url), url)) throw new Error('UNSUPPORTED_SOURCE');
   await validatePublicUrl(url);
   url = canonicalMediaUrl(url);
   // The bundled CommonJS resolver otherwise derives yt-dlp's path from the
   // flattened Electron bundle directory, which does not contain the binary.
   process.env.YTDLP_BINARY_PATH = runtimeBinary('yt-dlp');
-  if (mode === 'video' && ['instagram', 'twitter'].includes(detectSource(url))) {
-    try {
-      const post = await resolveSocialImages(url, runtimeBinary('yt-dlp'));
-      if (post) return {
-        success: true, platform: detectSource(url), title: post.title, creator: post.creator,
-        thumbnail: post.images[0], type: 'image', qualityLabel: `${post.images.length} original image${post.images.length === 1 ? '' : 's'}`,
-        sourceUrl: url,
-      };
-    } catch { /* Continue through the normal video extractor. */ }
-  }
   const { resolveMedia: resolve } = require('../services/resolver/resolveMedia') as {
     resolveMedia(value: string, mediaMode: MediaMode): Promise<ResolverResult>;
   };
@@ -189,14 +178,8 @@ function downloadArguments(request: DownloadRequest, outputDirectory: string, te
 }
 
 async function startDownload(request: DownloadRequest): Promise<DownloadProgress> {
-  if (isUnavailableSource(detectSource(request.url))) throw new Error('UNSUPPORTED_SOURCE');
+  if (isUnavailableSource(detectSource(request.url), request.url)) throw new Error('UNSUPPORTED_SOURCE');
   await validatePublicUrl(request.url);
-  if (request.mode === 'video' && ['instagram', 'twitter'].includes(detectSource(request.url))) {
-    try {
-      const post = await resolveSocialImages(request.url, runtimeBinary('yt-dlp'));
-      if (post) return startImageDownload(post.images, request.title || post.title);
-    } catch { /* Normal media remains available through yt-dlp. */ }
-  }
   const policy = createDownloadPolicy(request.mode, detectSource(request.url));
   const jobId = randomUUID();
   const tempDirectory = path.join(app.getPath('temp'), 'savewave', jobId);
@@ -242,49 +225,12 @@ async function startDownload(request: DownloadRequest): Promise<DownloadProgress
   return progress;
 }
 
-function startImageDownload(images: string[], title: string): DownloadProgress {
-  const jobId = randomUUID();
-  const progress: DownloadProgress = { jobId, state: 'downloading', percent: 0 };
-  const controller = new AbortController();
-  const job: DesktopJob = { progress, tempDirectory: '', process: { kill: () => { controller.abort(); return true; } } };
-  jobs.set(jobId, job);
-  void (async () => {
-    const filenames: string[] = [];
-    try {
-      for (const [index, image] of images.entries()) {
-        if (!isTrustedSocialImage(image)) throw new Error('INVALID_URL');
-        const response = await fetch(image, { signal: controller.signal, redirect: 'error', headers: { 'User-Agent': 'Mozilla/5.0' } });
-        if (!response.ok || !response.headers.get('content-type')?.toLowerCase().startsWith('image/')) throw new Error('DOWNLOAD_FAILED');
-        if (Number(response.headers.get('content-length') || 0) > 50 * 1024 * 1024) throw new Error('DOWNLOAD_FAILED');
-        const data = Buffer.from(await response.arrayBuffer());
-        if (!data.length || data.length > 50 * 1024 * 1024) throw new Error('DOWNLOAD_FAILED');
-        const filename = `${sanitizeFilename(title).slice(0, 100)}-${String(index + 1).padStart(2, '0')}-${jobId.slice(0, 8)}.${imageExtension(image)}`;
-        const file = await open(path.join(app.getPath('downloads'), filename), 'wx');
-        filenames.push(filename);
-        try { await file.writeFile(data); } finally { await file.close(); }
-        job.progress = { jobId, state: 'downloading', percent: Math.round(100 * (index + 1) / images.length), filename, filenames: [...filenames] };
-      }
-      job.progress = { ...job.progress, state: 'completed', percent: 100 };
-    } catch (error) {
-      if (controller.signal.aborted) return;
-      const errorCode = classifyErrorText(String(error));
-      job.progress = { jobId, state: 'error', errorCode, errorMessage: messageForError(errorCode) };
-    } finally {
-      if (job.progress.state !== 'completed') {
-        await Promise.all(filenames.map((filename) => rm(path.join(app.getPath('downloads'), filename), { force: true })));
-      }
-      job.process = undefined;
-    }
-  })();
-  return progress;
-}
-
 function registerHandlers(): void {
   const capabilities: PlatformCapabilities = {
     platform: 'desktop',
     sources: {
       youtube: { video: true, audio: true, media: true },
-      instagram: {},
+      instagram: { video: true, audio: true },
       facebook: {},
       threads: { media: true },
       twitter: {},

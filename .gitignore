@@ -44,8 +44,8 @@ test-results/
 *.tsbuildinfo
 *.tgz
 
-src-tauri/binaries/yt-dlp-*
-src-tauri/binaries/ffmpeg-*
-src-tauri/target/
+assets/binaries/yt-dlp-*
+assets/binaries/ffmpeg-*
+src-tauri/
 **/.gradle/
 android/**/build/

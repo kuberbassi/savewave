@@ -4,7 +4,7 @@ const full = { video: true, audio: true, media: true };
 export function capabilitiesFor(platform: PlatformType): PlatformCapabilities {
   const native = platform !== 'web';
   return { platform, sources: {
-    youtube: native ? full : none, instagram: none, facebook: none,
+    youtube: native ? full : none, instagram: native ? { video: true, audio: true } : none, facebook: none,
     threads: native ? { media: true } : none, twitter: none,
     soundcloud: native ? { audio: true } : none, spotify: native ? { audio: true, smartMatch: true } : none,
     direct: { video: true, audio: true, media: true }, unknown: none

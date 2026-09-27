@@ -47,7 +47,7 @@ import org.json.JSONArray;
 @CapacitorPlugin(name = "SavewaveMedia")
 public class SavewaveMediaPlugin extends Plugin {
     private static final String TAG = "SavewaveMedia";
-    private static final String APP_VERSION = "1.0.13";
+    private static final String APP_VERSION = "1.0.14";
     private static final Set<String> TERMINAL_STATES = Set.of("completed", "cancelled", "error");
     private static final Pattern SPOTIFY_TRACK = Pattern.compile("^/track/([A-Za-z0-9]{22})/?$");
     private static final Pattern NEXT_DATA = Pattern.compile("(?s)<script[^>]*id=[\\\"']__NEXT_DATA__[\\\"'][^>]*>(.*?)</script>");
@@ -101,7 +101,8 @@ public class SavewaveMediaPlugin extends Plugin {
         for (String source : new String[]{"youtube", "threads", "direct"}) {
             sources.put(source, capability(true, true, true, false));
         }
-        for (String source : new String[]{"instagram", "facebook", "twitter"}) sources.put(source, new JSObject());
+        sources.put("instagram", capability(true, true, false, false));
+        for (String source : new String[]{"facebook", "twitter"}) sources.put(source, new JSObject());
         sources.put("soundcloud", capability(false, true, false, false));
         sources.put("spotify", capability(false, true, false, true));
         sources.put("unknown", new JSObject());

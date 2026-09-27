@@ -2,21 +2,18 @@
 
 Use this checklist for every Savewave release. A release is complete only after the version metadata, changelog, builds, published assets, and update paths have all been checked.
 
+For the normal one-click release, first write a `## Unreleased - short summary` section with at least one bullet in `CHANGELOG.md`. Commit and push any unrelated work separately. Then double-click `release-next.cmd` (or run `powershell -ExecutionPolicy Bypass -File scripts/release.ps1`). The command calculates the next patch version, updates every active version field, builds and tests both clients, commits, publishes the tag, waits for both installer workflows and four assets, pushes `main` only after the assets exist, then checks CI and Pages. Use `scripts/release.ps1 -CheckOnly` to check the changelog without changing anything or `-Version 1.1.0` for an explicit version. It never stages unrelated untracked files. If it stops, read its error before retrying; a tag may already exist.
+
 ## 1. Update every version location
 
 Use the same `MAJOR.MINOR.PATCH` value in:
 
 - `package.json`
 - `package-lock.json` (both root package entries)
-- `src-tauri/Cargo.toml`
-- the `savewave` package entry in `src-tauri/Cargo.lock`
-- `src-tauri/tauri.conf.json`
-- generated `src-tauri/gen/android/app/tauri.properties` (`versionName` and increasing `versionCode`, checked when the local Android project has been initialized)
-- `src-tauri/android/savewave-media/src/main/java/com/kuberbassi/savewave/media/SavewaveMediaPlugin.kt`
 - `android/app/build.gradle` (`versionName` and monotonically increasing `versionCode`)
 - `android/app/src/main/java/com/kuberbassi/savewave/SavewaveMediaPlugin.java`
 - `public/config.js` (the web/footer fallback)
-- `src/core/platform/android.ts`
+- `src/desktop/main.ts`
 - `src/core/platform/web.ts`
 - `public/client-version.json`, including every release download and changelog URL
 - `CHANGELOG.md`, with user-visible fixes and exact artifact names
@@ -27,7 +24,7 @@ Do not edit generated `public/core.js` by hand. `npm run build` regenerates it, 
 
 - Check the latest stable yt-dlp release before publishing.
 - Update the pinned desktop sidecar version and checksum together.
-- Update Android's minimum yt-dlp version when the release depends on a newer extractor.
+- Review the separately bundled Android engine when the release depends on a newer extractor.
 - Rebuild and verify both platforms because desktop and Android use separate yt-dlp installations.
 
 ## 3. Run the mandatory checks
@@ -43,9 +40,6 @@ npm.cmd run build:electron
 npm.cmd run capacitor:sync
 npm.cmd run prepare:sidecars
 npm.cmd run electron:pack -- --publish never
-Push-Location src-tauri
-cargo test --locked
-Pop-Location
 Push-Location android
 .\gradlew.bat testDebugUnitTest lintDebug assembleDebug
 Pop-Location
@@ -55,7 +49,9 @@ Pop-Location
 
 ## 4. Test installed clients
 
-Complete [the installed-client matrix](MANUAL_TEST_MATRIX.md), including rejection of Instagram, Facebook, and X/Twitter links on both installed clients.
+Complete [the installed-client matrix](MANUAL_TEST_MATRIX.md), including a real public Instagram Reel download and rejection of Instagram posts, Facebook, and X/Twitter links on both installed clients.
+
+Locally rebuilt installers and debug APKs with the same version as a published release can validate a feature, but are not auto-update or signed in-place-upgrade evidence. Never replace an already-published asset with a different binary at the same version. The release command changes every version location after the owner writes `CHANGELOG.md`; record any manual matrix rows that were skipped.
 
 - Windows: install the produced `.exe`, launch it, and complete one real video plus audio download.
 - Android: install the signed APK over the previous version on a physical ARM64 phone and complete the same download.
@@ -69,8 +65,8 @@ Automated tests reduce mistakes but cannot guarantee every source, network, devi
 ## 5. Publish and verify
 
 1. Commit the complete release change.
-2. Push the release commit and tag `vMAJOR.MINOR.PATCH`.
-3. Wait for Windows Release, Android Release, CI, and Pages workflows to pass.
+2. Push the tag `vMAJOR.MINOR.PATCH` to build and publish both platform assets.
+3. Verify both release workflows and all four assets, then push `main` so Pages publishes a manifest with working links. Wait for CI and Pages.
 4. Verify the GitHub release contains the Windows installer, signed Android APK, and both SHA-256 files.
 5. Download the public assets and verify their checksums/signatures.
 6. Verify `public/client-version.json` is live only after those assets exist.

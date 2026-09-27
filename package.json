@@ -1,6 +1,6 @@
 {
   "name": "savewave",
-  "version": "1.0.13",
+  "version": "1.0.14",
   "description": "Privacy-focused resolver and downloader for supported public video, audio, and image links.",
   "author": "Kuber Bassi",
   "homepage": "https://savewave.kuberbassi.com/",
@@ -36,15 +36,11 @@
     "electron:pack": "npm run build && npm run build:electron && npm run prepare:sidecars && electron-builder --win nsis",
     "capacitor:add:android": "npm run build && npm run build:capacitor && cap add android",
     "capacitor:sync": "npm run build && npm run build:capacitor && cap sync android",
-    "tauri": "tauri",
-    "tauri:dev": "npm run prepare:sidecars && tauri dev",
-    "tauri:build": "npm run prepare:sidecars && tauri build",
     "test:spotify-playlist": "node scripts/benchmark-spotify-playlist.js"
   },
   "dependencies": {
     "@capacitor/android": "^8.5.2",
     "@capacitor/core": "^8.5.2",
-    "@tauri-apps/plugin-opener": "^2.5.0",
     "express": "^4.19.2",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
@@ -59,8 +55,6 @@
     "@capacitor/cli": "^8.5.2",
     "@eslint/js": "^9.39.0",
     "@tailwindcss/cli": "^4.3.3",
-    "@tauri-apps/api": "^2.8.0",
-    "@tauri-apps/cli": "^2.8.0",
     "@vitest/coverage-v8": "^4.1.11",
     "electron": "^44.4.3",
     "electron-builder": "^26.15.3",
@@ -87,17 +81,17 @@
     ],
     "extraResources": [
       {
-        "from": "src-tauri/binaries/yt-dlp-x86_64-pc-windows-msvc.exe",
+        "from": "assets/binaries/yt-dlp-x86_64-pc-windows-msvc.exe",
         "to": "yt-dlp.exe"
       },
       {
-        "from": "src-tauri/binaries/ffmpeg-x86_64-pc-windows-msvc.exe",
+        "from": "assets/binaries/ffmpeg-x86_64-pc-windows-msvc.exe",
         "to": "ffmpeg.exe"
       }
     ],
     "win": {
       "target": "nsis",
-      "icon": "src-tauri/icons/icon.ico",
+      "icon": "assets/icon.ico",
       "artifactName": "Savewave_${version}_x64-setup.${ext}"
     },
     "nsis": {

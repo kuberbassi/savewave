@@ -4,6 +4,7 @@
 
 const { detectSource } = require('./detectSource');
 const { resolveYouTube } = require('./providers/youtube');
+const { resolveInstagramReel } = require('./providers/instagramReel');
 const { resolveThreads } = require('./providers/threads');
 const { resolveSoundCloud } = require('./providers/soundcloud');
 const { resolveSpotifySmartMatch } = require('./smartMatch/spotifyMatcher');
@@ -19,6 +20,8 @@ async function resolveMedia(url, mode = 'video') {
   switch (detection.platform) {
     case 'youtube':
       return await resolveYouTube(url, mode);
+    case 'instagram':
+      return await resolveInstagramReel(url, mode);
     case 'threads':
       return await resolveThreads(url, mode);
     case 'soundcloud':

@@ -1,5 +1,0 @@
-include ':app'
-include ':savewave-media'
-project(':savewave-media').projectDir = file('../../android/savewave-media')
-
-apply from: 'tauri.settings.gradle'

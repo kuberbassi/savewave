@@ -43,7 +43,6 @@ For a yt-dlp PR, the automation has already performed a real public-video downlo
 `.github/dependabot.yml` checks:
 
 - npm packages every Monday at 04:00 IST;
-- Rust crates every Monday at 04:15 IST;
 - GitHub Actions monthly at 04:30 IST.
 
 Minor and patch upgrades are grouped to reduce noise. Major upgrades remain separate because they can require migrations. Every Dependabot PR runs the normal CI workflow.
@@ -53,12 +52,11 @@ Minor and patch upgrades are grouped to reduce noise. Major upgrades remain sepa
 `.github/workflows/automated-maintenance.yml` runs every Monday at 06:00 IST and can also be started manually. It:
 
 1. Reads the latest stable release from the official `yt-dlp/yt-dlp` repository.
-2. Synchronizes the desktop pin and Android minimum-engine version.
+2. Updates the desktop pin; Android uses its own bundled engine.
 3. Runs typechecking, unit tests, the production build, and release-version validation.
 4. Downloads and verifies the pinned desktop sidecar.
 5. Performs a real transfer of yt-dlp's public test video.
-6. Runs the Rust tests.
-7. Opens or refreshes `automation/update-ytdlp` only when every check passes.
+6. Opens or refreshes `automation/update-ytdlp` only when every check passes.
 
 If validation fails, the workflow creates or updates an `Automated maintenance needs attention` issue and links the failed run. A failed update is never released automatically.
 
@@ -118,9 +116,6 @@ node scripts/update-ytdlp-version.js YYYY.MM.DD
 npm.cmd run check
 npm.cmd run prepare:sidecars
 node scripts/smoke-test-ytdlp.js
-Push-Location src-tauri
-cargo test --locked
-Pop-Location
 ```
 
 To test a different public video without changing the script:
@@ -139,7 +134,6 @@ The simplest response is: do not merge the failed PR. Open the failure issue, co
 - Project checks: fix the failing typecheck, unit test, build, or version location.
 - Sidecar preparation: verify that the discovered yt-dlp release exists and is downloadable.
 - Real transfer: open the verbose yt-dlp output; HTTP 403 or signature errors usually require an upstream extractor fix or client-option adjustment.
-- Rust tests: review crate updates and Tauri API compatibility.
 - Pull-request permission error: repeat the initial GitHub permission setup above.
 
 Rerun the failed workflow after fixing the cause. The fixed branch name prevents duplicate yt-dlp PRs.
@@ -148,7 +142,7 @@ Rerun the failed workflow after fixing the cause. The fixed branch name prevents
 
 Automatic merging is intentionally disabled initially. After several reliable weekly runs, repository rules may auto-merge Dependabot patch PRs only when all required CI checks pass. Keep these manual:
 
-- major npm, Rust, Tauri, Android SDK, and GitHub Actions upgrades;
+- major npm, Android SDK, and GitHub Actions upgrades;
 - yt-dlp engine updates;
 - changes involving Android signing or release permissions;
 - production version tags and GitHub releases.

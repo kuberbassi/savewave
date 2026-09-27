@@ -14,12 +14,13 @@ export interface DownloadPolicy {
 
 export function createDownloadPolicy(mode: MediaMode, source?: MediaSource): DownloadPolicy {
   const socialSource = source === 'instagram' || source === 'facebook' || source === 'threads' || source === 'twitter';
+  const multiItemSource = socialSource && source !== 'instagram';
   const reliability = {
     socketTimeoutSeconds: 20,
     retries: 5,
     fragmentRetries: 5,
     extractorRetries: 3,
-    maxItems: socialSource ? 20 : 1,
+    maxItems: multiItemSource ? 20 : 1,
   };
   return mode === 'audio'
     ? { ...reliability, formatSelector: 'bestaudio/best', extractAudio: true, audioFormat: 'best' }

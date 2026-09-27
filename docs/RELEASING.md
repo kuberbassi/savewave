@@ -2,6 +2,10 @@
 
 Follow the complete [release checklist](RELEASE_CHECKLIST.md) for every version. It is the source of truth for version files, platform checks, artifacts, and post-publication verification.
 
+## Candidate versus published update
+
+Do not distribute a locally rebuilt installer or APK under an already-published version: neither updater will see it as newer. Write a `## Unreleased` changelog section and run the guarded release command. It assigns the next version, raises Android's version code, builds both clients, and publishes release assets before `main` exposes the new manifest and website source list. Record skipped installed-client testing honestly; it is not a pass.
+
 ## Required checks
 
 ```powershell
@@ -24,16 +28,18 @@ The resulting setup file contains Savewave plus private yt-dlp and FFmpeg applic
 
 Tagged releases are automated by `.github/workflows/release.yml`: a `vMAJOR.MINOR.PATCH` tag runs all checks, builds the Electron NSIS installer, creates a SHA-256 checksum, and attaches both to GitHub Releases. The tag and all version locations in the release checklist must match.
 
-Production distribution requires an Authenticode code-signing certificate. Unsigned builds may trigger Windows SmartScreen even when their checksum and source are valid.
+An Authenticode code-signing certificate is recommended, not required for the one-click NSIS installer. Unsigned builds may trigger Windows SmartScreen even when their checksum and source are valid.
 
 ## Release notification
 
 1. Build, test, checksum, and publish the Windows installer on GitHub Releases.
 2. Confirm the public asset downloads successfully.
-3. Update `public/client-version.json` only after confirming both versioned release assets and the Windows checksum are public.
-4. Deploy the website. Older desktop clients will automatically stage and launch the verified one-click installer on startup. A failure leaves the old app usable. Android offers the APK and requires a system install confirmation.
+3. Deploy the versioned `public/client-version.json` only after both installers and checksums are public. The release script prepares it in the tagged commit but does not push `main` until the assets exist.
+4. Older desktop clients will automatically stage and launch the verified one-click installer on startup. A failure leaves the old app usable. Android offers the APK and requires a system install confirmation.
 
-The manifest must never be updated before its installers exist. The Windows updater accepts only the expected versioned GitHub asset path and a matching published SHA-256 file. This guards against transfer corruption but is not equivalent to an Authenticode publisher signature; unsigned installers may still trigger Windows SmartScreen. Keep the GitHub repository and release workflow protected.
+Before publishing, test a cold start of an older packaged Windows client with the new manifest and checksum available; verify the new version launches and user data remains. On Android, install the new same-key, higher-version-code APK over the old app and verify the OS confirmation and preserved state. A unit test of the URL/checksum policy does not replace either installed upgrade test.
+
+The live manifest must never advertise a version before its installers exist. The Windows updater accepts only the expected versioned GitHub asset path and a matching published SHA-256 file. This guards against transfer corruption but is not equivalent to an Authenticode publisher signature; unsigned installers may still trigger Windows SmartScreen. Keep the GitHub repository and release workflow protected.
 
 ## Android
 

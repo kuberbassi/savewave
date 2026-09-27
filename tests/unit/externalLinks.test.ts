@@ -1,11 +1,10 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-const calls = vi.hoisted(() => ({ android: vi.fn(), tauri: vi.fn() }));
+const calls = vi.hoisted(() => ({ android: vi.fn() }));
 vi.mock('@capacitor/core', () => ({
   Capacitor: { isNativePlatform: () => false, getPlatform: () => 'web' },
   registerPlugin: () => ({ openExternal: calls.android }),
 }));
-vi.mock('@tauri-apps/plugin-opener', () => ({ openUrl: calls.tauri }));
 
 import { openExternal } from '../../src/core/platform/external';
 
@@ -20,7 +19,6 @@ describe('footer external links', () => {
     expect(desktop.openExternal).toHaveBeenCalledTimes(2);
     expect(desktop.openExternal).toHaveBeenNthCalledWith(1, 'https://github.com/kuberbassi/savewave');
     expect(desktop.openExternal).toHaveBeenNthCalledWith(2, 'https://kuberbassi.com/');
-    expect(calls.tauri).not.toHaveBeenCalled();
   });
 
   it('does not open an untrusted link', async () => {

@@ -16,12 +16,12 @@ export class ElectronMediaEngine implements MediaEngine {
   async getEngineStatus() { return parseEngineStatus(await desktopBridge().getEngineStatus()); }
   async getReleaseInfo() { return parseReleaseInfo(await desktopBridge().getReleaseInfo()); }
   async resolveMedia(url: string, mode: MediaMode = 'video') {
-    if (isUnavailableSource(detectSource(url))) throw new MediaEngineError('UNSUPPORTED_SOURCE');
+    if (isUnavailableSource(detectSource(url), url)) throw new MediaEngineError('UNSUPPORTED_SOURCE');
     return parseResolvedMedia(await desktopBridge().resolveMedia(url, mode));
   }
   async downloadMedia(request: DownloadRequest) {
     const input = parseDownloadRequest(request);
-    if (isUnavailableSource(detectSource(input.url))) throw new MediaEngineError('UNSUPPORTED_SOURCE');
+    if (isUnavailableSource(detectSource(input.url), input.url)) throw new MediaEngineError('UNSUPPORTED_SOURCE');
     return parseDownloadJob(await desktopBridge().downloadMedia(input));
   }
   cancelDownload(jobId: string) { return desktopBridge().cancelDownload(jobId); }

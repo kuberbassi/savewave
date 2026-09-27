@@ -443,9 +443,15 @@ const SavewaveApp = () => {
         name: 'YOUTUBE',
         icon: 'YOUTUBE'
       });
+    } else if (source === 'instagram' && window.SavewaveCore.isSupportedInstagramReelUrl(val)) {
+      setPlatformInfo({
+        name: 'INSTAGRAM REEL',
+        icon: 'INSTAGRAM'
+      });
+      setMode('video');
     } else if (source === 'instagram' || source === 'facebook' || source === 'twitter') {
       const labels = {
-        instagram: 'INSTAGRAM',
+        instagram: 'INSTAGRAM POST',
         facebook: 'FACEBOOK',
         twitter: 'X / TWITTER'
       };
@@ -481,7 +487,7 @@ const SavewaveApp = () => {
     const requestedUrl = url.trim();
     const requestedMode = mode;
     if (!requestedUrl || loading) return;
-    if (window.SavewaveCore.isUnavailableSource(window.SavewaveCore.detectSource(requestedUrl))) {
+    if (window.SavewaveCore.isUnavailableSource(window.SavewaveCore.detectSource(requestedUrl), requestedUrl)) {
       showAlert('This source is not currently supported by Savewave.', 'SOURCE UNAVAILABLE');
       return;
     }

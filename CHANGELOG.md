@@ -1,5 +1,13 @@
 # Changelog
 
+## v1.0.14 - public Instagram Reels and maintenance cleanup
+
+- Restored individual public Instagram Reel video and audio downloads through the local yt-dlp engine on Windows and Android, without requiring a Savewave account or session. Instagram posts, carousels, Stories, Facebook, and X remain unavailable; private or login-gated media is not supported.
+- Updated source detection, supported-source cards, and error handling so the website and both apps describe the same Reel-only scope.
+- Removed the retired Tauri/Rust implementation and unused social-provider paths from the maintained source tree. Electron and Capacitor remain the active clients.
+- Added a guarded one-command release workflow that synchronizes versions, runs both platform build gates, publishes checksummed installers, and updates the website manifest only after release assets exist.
+- Refreshed architecture, maintenance, quality, release, and manual-testing documentation. A public Reel resolved and downloaded on Windows; installed Android Reel transfers and in-place upgrades remain unverified.
+
 ## v1.0.13 - automatic updates and release pipeline
 
 - Windows now checks GitHub release metadata at startup, downloads the matching Electron one-click installer, verifies its published SHA-256 checksum, and starts the silent upgrade automatically. If the network or verification fails, the installed app remains usable.

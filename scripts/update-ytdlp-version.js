@@ -14,11 +14,6 @@ const targets = [
     file: 'scripts/prepare-sidecars.js',
     pattern: /(SAVEWAVE_YTDLP_VERSION \|\| ')\d{4}\.\d{2}\.\d{2}(';)/,
   },
-  {
-    file: 'src-tauri/android/savewave-media/src/main/java/com/kuberbassi/savewave/media/SavewaveMediaPlugin.kt',
-    pattern: /(MINIMUM_ENGINE_VERSION = ")\d{4}\.\d{2}\.\d{2}"/,
-    suffix: '"',
-  },
 ];
 
 for (const target of targets) {

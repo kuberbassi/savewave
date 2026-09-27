@@ -15,46 +15,32 @@ function requireMatch(file, pattern, description) {
   if (!pattern.test(read(file))) failures.push(`${file}: ${description}`);
 }
 
-function requireMatchWhenPresent(file, pattern, description) {
-  const absolute = path.join(root, file);
-  if (fs.existsSync(absolute) && !pattern.test(fs.readFileSync(absolute, 'utf8'))) {
-    failures.push(`${file}: ${description}`);
-  }
+const lock = JSON.parse(read('package-lock.json'));
+if (lock.version !== version || lock.packages?.['']?.version !== version) {
+  failures.push('package-lock.json: root package versions differ');
 }
-
-requireMatch('package-lock.json', new RegExp(`"version": "${escaped}"`), 'root version differs');
-requireMatch('src-tauri/Cargo.toml', new RegExp(`^version = "${escaped}"$`, 'm'), 'package version differs');
-requireMatch('src-tauri/Cargo.lock', new RegExp(`name = "savewave"\\r?\\nversion = "${escaped}"`), 'Savewave package version differs');
-requireMatch('src-tauri/tauri.conf.json', new RegExp(`"version": "${escaped}"`), 'application version differs');
-// Tauri generates and git-ignores this file. Validate it in initialized Android
-// worktrees, but do not fail clean CI checkouts where it correctly does not exist.
-requireMatchWhenPresent('src-tauri/gen/android/app/tauri.properties', new RegExp(`^tauri\\.android\\.versionName=${escaped}$`, 'm'), 'Android versionName differs');
-requireMatchWhenPresent('src-tauri/gen/android/app/tauri.properties', new RegExp(`^tauri\\.android\\.versionCode=${androidVersionCode}$`, 'm'), 'Android versionCode differs');
-requireMatch('src-tauri/android/savewave-media/src/main/java/com/kuberbassi/savewave/media/SavewaveMediaPlugin.kt', new RegExp(`put\\("version", "${escaped}"\\)`), 'Android plugin version differs');
+requireMatch('android/app/build.gradle', new RegExp(`versionName "${escaped}"`), 'Android versionName differs');
+requireMatch('android/app/build.gradle', new RegExp(`versionCode ${androidVersionCode}\\b`), 'Android versionCode differs');
+requireMatch('android/app/src/main/java/com/kuberbassi/savewave/SavewaveMediaPlugin.java', new RegExp(`APP_VERSION = "${escaped}"`), 'Android plugin version differs');
+requireMatch('src/desktop/main.ts', new RegExp(`CURRENT_VERSION = '${escaped}'`), 'desktop version differs');
 requireMatch('public/config.js', new RegExp(`version: ['"]${escaped}['"]`), 'footer/config version differs');
-requireMatch('src/core/platform/android.ts', new RegExp(`CURRENT_VERSION = '${escaped}'`), 'Android client version differs');
 requireMatch('src/core/platform/web.ts', new RegExp(`version: '${escaped}'`), 'web client version differs');
-requireMatch('public/core.js', new RegExp(`CURRENT_VERSION = "${escaped}"`), 'generated browser core is stale; run npm run build');
+requireMatch('public/core.js', new RegExp(`version: "${escaped}"`), 'generated browser core is stale; run npm run build');
 requireMatch('CHANGELOG.md', new RegExp(`^## v${escaped}\\b`, 'm'), 'current release entry is missing');
 
 const manifest = JSON.parse(read('public/client-version.json'));
 if (manifest.version !== version) failures.push('public/client-version.json: version differs');
-for (const key of ['downloadUrl', 'androidDownloadUrl']) {
-  const value = manifest[key];
-  if (typeof value !== 'string' || !value.includes(`v${version}`)) {
-    failures.push(`public/client-version.json: ${key} does not target v${version}`);
-  }
+const releaseRoot = 'https://github.com/kuberbassi/savewave/releases';
+if (manifest.downloadUrl !== `${releaseRoot}/tag/v${version}`) failures.push('public/client-version.json: release page URL differs');
+if (manifest.windowsDownloadUrl !== `${releaseRoot}/download/v${version}/Savewave_${version}_x64-setup.exe`) {
+  failures.push('public/client-version.json: Windows installer URL differs');
 }
-if (typeof manifest.windowsDownloadUrl !== 'string' || !manifest.windowsDownloadUrl.includes(`Savewave_${version}_`)) {
-  failures.push(`public/client-version.json: windowsDownloadUrl does not name v${version}`);
+if (manifest.androidDownloadUrl !== `${releaseRoot}/download/v${version}/Savewave-android-arm64.apk`) {
+  failures.push('public/client-version.json: Android APK URL differs');
 }
 
 const desktopEngine = read('scripts/prepare-sidecars.js').match(/SAVEWAVE_YTDLP_VERSION \|\| '(\d{4}\.\d{2}\.\d{2})'/)?.[1];
-const androidEngine = read('src-tauri/android/savewave-media/src/main/java/com/kuberbassi/savewave/media/SavewaveMediaPlugin.kt')
-  .match(/MINIMUM_ENGINE_VERSION = "(\d{4}\.\d{2}\.\d{2})"/)?.[1];
-if (!desktopEngine || desktopEngine !== androidEngine) {
-  failures.push(`yt-dlp pins differ (desktop ${desktopEngine || 'missing'}, Android ${androidEngine || 'missing'})`);
-}
+if (!desktopEngine) failures.push('Desktop yt-dlp pin is missing');
 
 if (failures.length) {
   console.error(`Release version drift detected for v${version}:`);

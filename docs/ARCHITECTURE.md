@@ -4,7 +4,7 @@
 
 Savewave has two equally important installed clients: Windows desktop and Android APK. The website is only an installation and product-information surface. Media resolution and transfer run locally; there is no Savewave account database, media proxy, or cloud media storage.
 
-## Current migration architecture
+## Current architecture
 
 ```text
 React interface
@@ -25,7 +25,7 @@ Native execution boundary
     `-- small Java bridge launches Android engines and publishes through MediaStore
 ```
 
-Tauri/Rust and the older Kotlin Android plugin remain temporary rollback implementations. They are not the target architecture and must not receive new product policy. Remove them only after the installed-client matrix passes.
+The retired Tauri/Rust/Kotlin implementation was removed from the maintained tree. Its source remains recoverable from v1.0.13 Git history; it is not a third supported client. Installed-client upgrade and download validation are still required before claiming full parity.
 
 ## Ownership rules
 
@@ -43,7 +43,7 @@ Tauri/Rust and the older Kotlin Android plugin remain temporary rollback impleme
 - User text is never interpolated into shell command strings.
 - Runtime payloads are validated before entering application state.
 - Downloads are job-scoped, cancellable, bounded, and cleaned on terminal paths.
-- Instagram, Facebook, and X/Twitter links are recognized only to show an honest unsupported-source response. They are not advertised or passed to an extractor.
+- Public Instagram Reel URLs are passed to yt-dlp on both installed clients without cookies. Other Instagram paths, Facebook, and X/Twitter links receive an unsupported-source response. A public Reel can still fail if Instagram denies anonymous extraction or changes its API.
 - Android publishes completed files to `Downloads/Savewave`; it does not request broad storage access or run a permanent background service.
 - Spotify uncertainty produces a safe rejection or explicit two-option choice; popularity is never identity evidence.
 - Windows updates are GitHub-release-only: the Electron client validates the versioned asset URL and checks its downloaded bytes against the release SHA-256 file before invoking the one-click installer. A failed check leaves the installed app open.

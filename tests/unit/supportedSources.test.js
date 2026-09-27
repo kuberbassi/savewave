@@ -6,6 +6,6 @@ describe('public supported-source list', () => {
     const window = {};
     runInNewContext(readFileSync('public/config.js', 'utf8'), { window });
     const names = Array.from(window.SavewaveConfig.platforms, (platform) => platform.name);
-    expect(names).toEqual(['YOUTUBE', 'SOUNDCLOUD', 'SPOTIFY', 'DIRECT']);
+    expect(names).toEqual(['YOUTUBE', 'INSTAGRAM', 'SOUNDCLOUD', 'SPOTIFY', 'DIRECT']);
   });
 });

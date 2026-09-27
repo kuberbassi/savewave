@@ -24,7 +24,7 @@ Savewave is a clean, local-first media downloader. It automatically detects medi
 
 - **Local Processing**: Extraction runs on-device via bundled `yt-dlp` and `FFmpeg`.
 - **Zero Cloud Storage**: No remote user database, account system, or media proxies.
-- **Public Content Only**: Supports public YouTube, SoundCloud, direct media links, and Spotify Smart Match. Instagram, Facebook, and X/Twitter are not currently supported; private or DRM-gated media is also unsupported.
+- **Public Content Only**: Savewave v1.0.14 supports public YouTube, individual public Instagram Reels, SoundCloud, direct media links, and Spotify Smart Match. Instagram posts/Stories, Facebook, and X/Twitter are not supported; private, login-gated, or DRM media is also unsupported. Installed Android Reel transfers still need real-device confirmation.
 
 ---
 

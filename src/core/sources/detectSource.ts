@@ -23,6 +23,14 @@ export function detectSource(value: string): MediaSource {
   return directExtensions.test(url.pathname) ? 'direct' : 'unknown';
 }
 
-export function isUnavailableSource(source: MediaSource): boolean {
-  return source === 'instagram' || source === 'facebook' || source === 'twitter';
+export function isSupportedInstagramReelUrl(value: string): boolean {
+  const url = normalizeUrl(value);
+  if (!url) return false;
+  const host = url.hostname.toLowerCase();
+  return isDomain(host, 'instagram.com') && /^\/reels?\/[A-Za-z0-9_-]{5,}\/?$/.test(url.pathname);
+}
+
+export function isUnavailableSource(source: MediaSource, url?: string): boolean {
+  if (source === 'instagram') return !url || !isSupportedInstagramReelUrl(url);
+  return source === 'facebook' || source === 'twitter';
 }

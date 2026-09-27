@@ -24,11 +24,12 @@ describe('Source Detector', () => {
     expect(res.platform).toBe('spotify');
   });
 
-  it('rejects Instagram URLs as unavailable', () => {
-    const res = detectSource('https://www.instagram.com/reel/C3_ab123456');
-    expect(res.valid).toBe(false);
-    expect(res.platform).toBe('instagram');
-    expect(res.reason).toContain('not currently supported');
+  it('accepts public Reel-shaped URLs but rejects other Instagram paths', () => {
+    const res = detectSource('https://www.instagram.com/reel/C3_ab123456/?utm_source=copy');
+    expect(res).toMatchObject({ valid: true, platform: 'instagram', type: 'reel' });
+    for (const url of ['https://www.instagram.com/p/C3_ab123456/', 'https://www.instagram.com/stories/user/123', 'https://www.instagram.com/reel/C3_ab123456/extra']) {
+      expect(detectSource(url)).toMatchObject({ valid: false, platform: 'instagram' });
+    }
   });
 
   it('rejects Facebook and Twitter/X URLs as unavailable', () => {

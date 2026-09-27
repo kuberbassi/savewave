@@ -407,6 +407,7 @@ var SavewaveCore = (() => {
     equivalentToken: () => equivalentToken,
     evaluateCandidate: () => import_matcher.evaluateCandidate,
     identityQuery: () => import_search_runtime.identityQuery,
+    isSupportedInstagramReelUrl: () => isSupportedInstagramReelUrl,
     isUnavailableSource: () => isUnavailableSource,
     listHistory: () => listHistory,
     mediaFilename: () => mediaFilename,
@@ -513,6 +514,7 @@ var SavewaveCore = (() => {
     if (/cancel(?:led|ed|ation)/.test(text)) return "CANCELLED";
     if (/instagram/.test(text) && /no video formats found/.test(text)) return "POST_IMAGES_UNSUPPORTED";
     if (/\b429\b|too many requests|rate.?limit/.test(text)) return "RATE_LIMITED";
+    if (/instagram sent an empty media response/.test(text)) return "SOURCE_REJECTED";
     if (/\b403\b|forbidden|login required|log in|sign in|private (?:post|video|media|account)/.test(text)) return "SOURCE_FORBIDDEN";
     if (/\b404\b|not found|removed|unavailable video/.test(text)) return "SOURCE_NOT_FOUND";
     if (/no video formats found|requested format is not available/.test(text)) return "NO_MEDIA_FOUND";
@@ -813,12 +815,13 @@ var SavewaveCore = (() => {
   // src/core/media/quality.ts
   function createDownloadPolicy(mode, source) {
     const socialSource = source === "instagram" || source === "facebook" || source === "threads" || source === "twitter";
+    const multiItemSource = socialSource && source !== "instagram";
     const reliability = {
       socketTimeoutSeconds: 20,
       retries: 5,
       fragmentRetries: 5,
       extractorRetries: 3,
-      maxItems: socialSource ? 20 : 1
+      maxItems: multiItemSource ? 20 : 1
     };
     return mode === "audio" ? { ...reliability, formatSelector: "bestaudio/best", extractAudio: true, audioFormat: "best" } : socialSource ? { ...reliability, formatSelector: "best", extractAudio: false } : { ...reliability, formatSelector: "bestvideo+bestaudio/best", extractAudio: false, mergeOutputFormat: "mp4/mkv" };
   }
@@ -877,8 +880,15 @@ var SavewaveCore = (() => {
     if (host === "open.spotify.com") return "spotify";
     return directExtensions.test(url.pathname) ? "direct" : "unknown";
   }
-  function isUnavailableSource(source) {
-    return source === "instagram" || source === "facebook" || source === "twitter";
+  function isSupportedInstagramReelUrl(value) {
+    const url = normalizeUrl(value);
+    if (!url) return false;
+    const host = url.hostname.toLowerCase();
+    return isDomain(host, "instagram.com") && /^\/reels?\/[A-Za-z0-9_-]{5,}\/?$/.test(url.pathname);
+  }
+  function isUnavailableSource(source, url) {
+    if (source === "instagram") return !url || !isSupportedInstagramReelUrl(url);
+    return source === "facebook" || source === "twitter";
   }
 
   // src/core/platform/capabilities.ts
@@ -888,7 +898,7 @@ var SavewaveCore = (() => {
     const native = platform !== "web";
     return { platform, sources: {
       youtube: native ? full : none,
-      instagram: none,
+      instagram: native ? { video: true, audio: true } : none,
       facebook: none,
       threads: native ? { media: true } : none,
       twitter: none,
@@ -1412,228 +1422,6 @@ var SavewaveCore = (() => {
     web: () => new SystemBarsPluginWeb()
   });
 
-  // node_modules/@tauri-apps/api/external/tslib/tslib.es6.js
-  function __classPrivateFieldGet(receiver, state, kind, f) {
-    if (kind === "a" && !f) throw new TypeError("Private accessor was defined without a getter");
-    if (typeof state === "function" ? receiver !== state || !f : !state.has(receiver)) throw new TypeError("Cannot read private member from an object whose class did not declare it");
-    return kind === "m" ? f : kind === "a" ? f.call(receiver) : f ? f.value : state.get(receiver);
-  }
-  function __classPrivateFieldSet(receiver, state, value, kind, f) {
-    if (kind === "m") throw new TypeError("Private method is not writable");
-    if (kind === "a" && !f) throw new TypeError("Private accessor was defined without a setter");
-    if (typeof state === "function" ? receiver !== state || !f : !state.has(receiver)) throw new TypeError("Cannot write private member to an object whose class did not declare it");
-    return kind === "a" ? f.call(receiver, value) : f ? f.value = value : state.set(receiver, value), value;
-  }
-
-  // node_modules/@tauri-apps/api/core.js
-  var _Channel_onmessage;
-  var _Channel_nextMessageIndex;
-  var _Channel_pendingMessages;
-  var _Channel_messageEndIndex;
-  var _Resource_rid;
-  var SERIALIZE_TO_IPC_FN = "__TAURI_TO_IPC_KEY__";
-  function transformCallback(callback, once = false) {
-    return window.__TAURI_INTERNALS__.transformCallback(callback, once);
-  }
-  var Channel = class {
-    constructor(onmessage) {
-      _Channel_onmessage.set(this, void 0);
-      _Channel_nextMessageIndex.set(this, 0);
-      _Channel_pendingMessages.set(this, []);
-      _Channel_messageEndIndex.set(this, void 0);
-      __classPrivateFieldSet(this, _Channel_onmessage, onmessage || (() => {
-      }), "f");
-      this.id = transformCallback((rawMessage) => {
-        const index = rawMessage.index;
-        if ("end" in rawMessage) {
-          if (index == __classPrivateFieldGet(this, _Channel_nextMessageIndex, "f")) {
-            this.cleanupCallback();
-          } else {
-            __classPrivateFieldSet(this, _Channel_messageEndIndex, index, "f");
-          }
-          return;
-        }
-        const message = rawMessage.message;
-        if (index == __classPrivateFieldGet(this, _Channel_nextMessageIndex, "f")) {
-          __classPrivateFieldGet(this, _Channel_onmessage, "f").call(this, message);
-          __classPrivateFieldSet(this, _Channel_nextMessageIndex, __classPrivateFieldGet(this, _Channel_nextMessageIndex, "f") + 1, "f");
-          while (__classPrivateFieldGet(this, _Channel_nextMessageIndex, "f") in __classPrivateFieldGet(this, _Channel_pendingMessages, "f")) {
-            const message2 = __classPrivateFieldGet(this, _Channel_pendingMessages, "f")[__classPrivateFieldGet(this, _Channel_nextMessageIndex, "f")];
-            __classPrivateFieldGet(this, _Channel_onmessage, "f").call(this, message2);
-            delete __classPrivateFieldGet(this, _Channel_pendingMessages, "f")[__classPrivateFieldGet(this, _Channel_nextMessageIndex, "f")];
-            __classPrivateFieldSet(this, _Channel_nextMessageIndex, __classPrivateFieldGet(this, _Channel_nextMessageIndex, "f") + 1, "f");
-          }
-          if (__classPrivateFieldGet(this, _Channel_nextMessageIndex, "f") === __classPrivateFieldGet(this, _Channel_messageEndIndex, "f")) {
-            this.cleanupCallback();
-          }
-        } else {
-          __classPrivateFieldGet(this, _Channel_pendingMessages, "f")[index] = message;
-        }
-      });
-    }
-    cleanupCallback() {
-      window.__TAURI_INTERNALS__.unregisterCallback(this.id);
-    }
-    set onmessage(handler) {
-      __classPrivateFieldSet(this, _Channel_onmessage, handler, "f");
-    }
-    get onmessage() {
-      return __classPrivateFieldGet(this, _Channel_onmessage, "f");
-    }
-    [(_Channel_onmessage = /* @__PURE__ */ new WeakMap(), _Channel_nextMessageIndex = /* @__PURE__ */ new WeakMap(), _Channel_pendingMessages = /* @__PURE__ */ new WeakMap(), _Channel_messageEndIndex = /* @__PURE__ */ new WeakMap(), SERIALIZE_TO_IPC_FN)]() {
-      return `__CHANNEL__:${this.id}`;
-    }
-    toJSON() {
-      return this[SERIALIZE_TO_IPC_FN]();
-    }
-  };
-  async function invoke(cmd, args = {}, options) {
-    return window.__TAURI_INTERNALS__.invoke(cmd, args, options);
-  }
-  _Resource_rid = /* @__PURE__ */ new WeakMap();
-
-  // src/core/spotify/search.ts
-  var import_search_runtime = __toESM(require_search_runtime());
-
-  // src/core/spotify/youtubeMusic.ts
-  var import_youtubeMusic_runtime = __toESM(require_youtubeMusic_runtime());
-
-  // src/core/platform/native.ts
-  var NativeMediaEngine = class {
-    constructor(platform) {
-      this.platform = platform;
-    }
-    platform;
-    getPlatform() {
-      return this.platform;
-    }
-    getCapabilities() {
-      return invoke("get_capabilities");
-    }
-    getEngineStatus() {
-      return invoke("get_engine_status");
-    }
-    getReleaseInfo() {
-      return invoke("get_release_info");
-    }
-    async resolveMedia(url, mode = "video") {
-      if (isUnavailableSource(detectSource(url))) throw new MediaEngineError("UNSUPPORTED_SOURCE");
-      if (detectSource(url) !== "spotify") return invoke("resolve_media", { request: { url, mode } });
-      const track = await invoke("get_spotify_metadata", { url });
-      const match = await (0, import_search_runtime.resolveSpotifySource)(track, { search: async (stage) => {
-        if (stage.filter === "generic") return invoke("search_spotify_candidates", { query: stage.query });
-        try {
-          const payload = await invoke("search_youtube_music", { query: stage.query, filter: stage.filter });
-          return (0, import_youtubeMusic_runtime.parseYouTubeMusicResults)(payload, stage.filter);
-        } catch {
-          return [];
-        }
-      } });
-      if (!match) throw { code: "MATCH_CONFIDENCE_LOW" };
-      const source = match.candidate;
-      const sourceUrl = source.sourceUrl || source.url;
-      if (!sourceUrl) throw { code: "MATCH_CONFIDENCE_LOW" };
-      const fallbackSourceUrls = (match.alternatives || []).map((candidate) => candidate.sourceUrl || candidate.url).filter((value) => Boolean(value) && value !== sourceUrl);
-      return { success: true, platform: "spotify", title: track.title, creator: track.artists.join(", "), thumbnail: track.thumbnail, duration: track.duration, type: "audio", qualityLabel: "Verified high-confidence match", sourceUrl, fallbackSourceUrls };
-    }
-    downloadMedia(request) {
-      if (isUnavailableSource(detectSource(request.url))) throw new MediaEngineError("UNSUPPORTED_SOURCE");
-      return invoke("download_media", { request });
-    }
-    cancelDownload(jobId) {
-      return invoke("cancel_download", { jobId });
-    }
-    getDownloadProgress(jobId) {
-      return invoke("get_download_progress", { jobId });
-    }
-  };
-
-  // src/core/platform/android.ts
-  var command = (name, payload = {}) => invoke(`plugin:savewave-media|${name}`, payload);
-  var CURRENT_VERSION = "1.0.13";
-  var RELEASE_MANIFEST = "https://raw.githubusercontent.com/kuberbassi/savewave/main/public/client-version.json";
-  var TRUSTED_RELEASE_HOSTS = /* @__PURE__ */ new Set(["github.com", "raw.githubusercontent.com", "savewave.kuberbassi.com"]);
-  var isNewerVersion = (candidate, installed) => {
-    const parse = (value) => value.replace(/^v/, "").split(".").map(Number);
-    const next = parse(candidate);
-    const current = parse(installed);
-    if (next.some(Number.isNaN) || current.some(Number.isNaN)) return false;
-    for (let index = 0; index < Math.max(next.length, current.length); index += 1) {
-      const difference = (next[index] || 0) - (current[index] || 0);
-      if (difference !== 0) return difference > 0;
-    }
-    return false;
-  };
-  var AndroidMediaEngine = class {
-    getPlatform() {
-      return "android";
-    }
-    getCapabilities() {
-      return command("getCapabilities");
-    }
-    getEngineStatus() {
-      return command("getEngineStatus");
-    }
-    async getReleaseInfo() {
-      const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 8e3);
-      try {
-        const response = await fetch(RELEASE_MANIFEST, { cache: "no-store", signal: controller.signal });
-        if (!response.ok) return null;
-        const release = await response.json();
-        if (!release.androidDownloadUrl) return null;
-        const urls = [release.androidDownloadUrl, release.releaseUrl, release.changelogUrl].map((value) => new URL(value));
-        if (urls.some((url) => url.protocol !== "https:" || !TRUSTED_RELEASE_HOSTS.has(url.hostname))) return null;
-        return {
-          ...release,
-          downloadUrl: release.androidDownloadUrl,
-          updateAvailable: isNewerVersion(release.version, CURRENT_VERSION)
-        };
-      } catch {
-        return null;
-      } finally {
-        clearTimeout(timeout);
-      }
-    }
-    async resolveMedia(url, mode = "video") {
-      if (isUnavailableSource(detectSource(url))) throw new MediaEngineError("UNSUPPORTED_SOURCE");
-      if (detectSource(url) !== "spotify") return command("resolveMedia", { request: { url, mode } });
-      const track = await command("getSpotifyMetadata", { url });
-      console.info("[Savewave SmartMatch] Spotify metadata ready", { title: track.title, artists: track.artists, duration: track.duration });
-      const match = await (0, import_search_runtime.resolveSpotifySource)(track, { search: async (stage) => {
-        if (stage.filter === "generic") {
-          const results = (await command("searchSpotifyCandidates", { query: stage.query })).results;
-          console.info("[Savewave SmartMatch] Search stage complete", { stage: stage.name, candidates: results.length });
-          return results;
-        }
-        try {
-          const response = await command("searchYoutubeMusic", { query: stage.query, filter: stage.filter });
-          const results = (0, import_youtubeMusic_runtime.parseYouTubeMusicResults)(response.payload, stage.filter);
-          console.info("[Savewave SmartMatch] Search stage complete", { stage: stage.name, candidates: results.length });
-          return results;
-        } catch (error) {
-          console.warn("[Savewave SmartMatch] YouTube Music stage failed", { stage: stage.name, error: String(error) });
-          return [];
-        }
-      } });
-      const sourceUrl = match?.candidate.sourceUrl || match?.candidate.url;
-      console.info("[Savewave SmartMatch] Match decision", { matched: Boolean(match), videoId: match?.candidate.videoId, score: match?.score });
-      if (!match || !sourceUrl) throw { code: "MATCH_CONFIDENCE_LOW" };
-      const fallbackSourceUrls = (match.alternatives || []).map((candidate) => candidate.sourceUrl || candidate.url).filter((value) => Boolean(value) && value !== sourceUrl);
-      return { success: true, platform: "spotify", title: track.title, creator: track.artists.join(", "), thumbnail: track.thumbnail, duration: track.duration, type: "audio", qualityLabel: "Verified high-confidence match", sourceUrl, fallbackSourceUrls };
-    }
-    downloadMedia(request) {
-      if (isUnavailableSource(detectSource(request.url))) throw new MediaEngineError("UNSUPPORTED_SOURCE");
-      return command("downloadMedia", { request });
-    }
-    cancelDownload(jobId) {
-      return command("cancelDownload", { jobId });
-    }
-    getDownloadProgress(jobId) {
-      return command("getDownloadProgress", { jobId });
-    }
-  };
-
   // src/core/platform/electron.ts
   function desktopBridge() {
     const bridge = window.savewaveDesktop;
@@ -1654,12 +1442,12 @@ var SavewaveCore = (() => {
       return parseReleaseInfo(await desktopBridge().getReleaseInfo());
     }
     async resolveMedia(url, mode = "video") {
-      if (isUnavailableSource(detectSource(url))) throw new MediaEngineError("UNSUPPORTED_SOURCE");
+      if (isUnavailableSource(detectSource(url), url)) throw new MediaEngineError("UNSUPPORTED_SOURCE");
       return parseResolvedMedia(await desktopBridge().resolveMedia(url, mode));
     }
     async downloadMedia(request) {
       const input = parseDownloadRequest(request);
-      if (isUnavailableSource(detectSource(input.url))) throw new MediaEngineError("UNSUPPORTED_SOURCE");
+      if (isUnavailableSource(detectSource(input.url), input.url)) throw new MediaEngineError("UNSUPPORTED_SOURCE");
       return parseDownloadJob(await desktopBridge().downloadMedia(input));
     }
     cancelDownload(jobId) {
@@ -1669,6 +1457,9 @@ var SavewaveCore = (() => {
       return parseDownloadProgress(await desktopBridge().getDownloadProgress(jobId));
     }
   };
+
+  // src/core/spotify/search.ts
+  var import_search_runtime = __toESM(require_search_runtime());
 
   // src/core/spotify/resolvedMedia.ts
   var candidateUrl = (candidate) => candidate.sourceUrl || candidate.url;
@@ -1704,6 +1495,9 @@ var SavewaveCore = (() => {
     throw { code: "MATCH_CONFIDENCE_LOW" };
   }
 
+  // src/core/spotify/youtubeMusic.ts
+  var import_youtubeMusic_runtime = __toESM(require_youtubeMusic_runtime());
+
   // src/core/platform/capacitor.ts
   var mediaPlugin = registerPlugin("SavewaveMedia");
   var CapacitorMediaEngine = class {
@@ -1720,7 +1514,7 @@ var SavewaveCore = (() => {
       return parseReleaseInfo(await mediaPlugin.getReleaseInfo());
     }
     async resolveMedia(url, mode = "video") {
-      if (isUnavailableSource(detectSource(url))) throw new MediaEngineError("UNSUPPORTED_SOURCE");
+      if (isUnavailableSource(detectSource(url), url)) throw new MediaEngineError("UNSUPPORTED_SOURCE");
       if (detectSource(url) !== "spotify") return parseResolvedMedia(await mediaPlugin.resolveMedia({ url: canonicalMediaUrl(url), mode }));
       const track = await mediaPlugin.getSpotifyMetadata({ url });
       const decision = await (0, import_search_runtime.resolveSpotifyDecision)(track, { search: async (stage) => {
@@ -1736,7 +1530,7 @@ var SavewaveCore = (() => {
     }
     async downloadMedia(request) {
       const input = parseDownloadRequest(request);
-      if (isUnavailableSource(detectSource(input.url))) throw new MediaEngineError("UNSUPPORTED_SOURCE");
+      if (isUnavailableSource(detectSource(input.url), input.url)) throw new MediaEngineError("UNSUPPORTED_SOURCE");
       return parseDownloadJob(await mediaPlugin.downloadMedia({ ...input, url: canonicalMediaUrl(input.url), policy: createDownloadPolicy(input.mode, detectSource(input.url)) }));
     }
     cancelDownload(jobId) {
@@ -1757,7 +1551,7 @@ var SavewaveCore = (() => {
       return capabilitiesFor("web");
     }
     async getEngineStatus() {
-      return { available: true, version: "1.0.13" };
+      return { available: true, version: "1.0.14" };
     }
     async getReleaseInfo() {
       return null;
@@ -1797,25 +1591,15 @@ var SavewaveCore = (() => {
   function detectRuntime() {
     if (window.savewaveDesktop) return "desktop";
     if (Capacitor.isNativePlatform() && Capacitor.getPlatform() === "android") return "android";
-    const runtimeWindow = window;
-    if (!runtimeWindow.__TAURI_INTERNALS__) return "web";
-    return /android/i.test(navigator.userAgent) ? "android" : "desktop";
+    return "web";
   }
   function createMediaEngine() {
     const runtime = detectRuntime();
     if (runtime === "web") return new WebMediaEngine();
     if (runtime === "android") {
-      return Capacitor.isNativePlatform() ? new CapacitorMediaEngine() : new AndroidMediaEngine();
+      return new CapacitorMediaEngine();
     }
-    return window.savewaveDesktop ? new ElectronMediaEngine() : new NativeMediaEngine("desktop");
-  }
-
-  // node_modules/@tauri-apps/plugin-opener/dist-js/index.js
-  async function openUrl(url, openWith) {
-    await invoke("plugin:opener|open_url", {
-      url,
-      with: openWith
-    });
+    return new ElectronMediaEngine();
   }
 
   // src/core/platform/external.ts
@@ -1832,11 +1616,7 @@ var SavewaveCore = (() => {
       await androidLinks.openExternal({ url: url.toString() });
       return;
     }
-    if (!window.__TAURI_INTERNALS__) {
-      window.open(url.toString(), "_blank", "noopener,noreferrer");
-      return;
-    }
-    await openUrl(url.toString());
+    window.open(url.toString(), "_blank", "noopener,noreferrer");
   }
 
   // src/core/spotify/normalize.ts

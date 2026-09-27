@@ -6,9 +6,9 @@ This document records what the quality sprint proves and what still requires pac
 
 The maintained core is substantially better than a throwaway AI-generated prototype: it has explicit platform contracts, URL/input validation, bounded download jobs, a shared Spotify matcher, and a deterministic lint/typecheck/test gate. The 16-suite, 128-test gate exercised the current shared logic after this update. That is evidence of discipline, not proof that every provider or installed client works.
 
-The main maintainability liabilities are still real: the legacy Tauri/Rust/Kotlin rollback tree remains beside Electron/Capacitor; `public/app.jsx` and the Android media plugin are large multi-responsibility files; provider behavior depends on external sites; and deterministic tests cannot prove installed upgrades. The old Windows release workflow and README still described Tauri even though Electron was the intended release client. This sprint corrected that release-path drift, brought native Android update checking online, added checksum-verified Windows update staging and URL tests, and refreshed the user/release documentation. The rollback tree has not been deleted because installed upgrade and parity evidence is still a release gate.
+The main maintainability liabilities are still real: `public/app.jsx` and the Android media plugin are large multi-responsibility files; provider behavior depends on external sites; and deterministic tests cannot prove installed upgrades. The Tauri/Rust/Kotlin rollback tree has since been removed from the maintained tree and remains recoverable from v1.0.13 Git history. This cleanup does not prove installed-client parity.
 
-Do not call the product "flawless" or "fully verified" until a v1.0.12-to-v1.0.13 Windows installer upgrade, a same-key Android APK upgrade, saved-output checks, and representative live provider transfers pass on installed clients. Simplicity here means one authoritative shared policy layer and small native adapters, not chasing a file-count metric or deleting rollback code before proof.
+Do not call the product "flawless" or "fully verified" until a Windows installer upgrade, a same-key Android APK upgrade, saved-output checks, and representative live provider transfers pass on installed clients. Simplicity here means one authoritative shared policy layer and small native adapters, not chasing a file-count metric.
 
 ## Product scope
 
@@ -31,14 +31,13 @@ npm.cmd run build
 npm.cmd run check:release
 npm.cmd run build:electron
 npm.cmd run capacitor:sync
-cargo test --manifest-path src-tauri\Cargo.toml
 cd android
 .\gradlew.bat testDebugUnitTest lintDebug assembleDebug
 ```
 
 Android Gradle Plugin 8 requires Java 11 or newer. If Windows resolves an older system Java, set `JAVA_HOME` to Android Studio's bundled `jbr` and `ANDROID_HOME` to the installed Android SDK for that terminal before running Gradle. Do not downgrade Android tooling to accommodate Java 8.
 
-`npm.cmd run check` combines the TypeScript check, lint, JavaScript/TypeScript tests, production web build, and release-version consistency. Rust remains a transitional gate until Tauri is removed.
+`npm.cmd run check` combines the TypeScript check, lint, JavaScript/TypeScript tests, production web build, and release-version consistency.
 
 Use `npm.cmd run check:fast` while editing. The complete `npm.cmd run check` additionally enforces risk-focused coverage thresholds and verifies that committed browser assets were already regenerated. Native packaging and installed-client checks remain separate because they require platform toolchains or physical devices.
 
@@ -49,6 +48,16 @@ Use `npm.cmd run check:fast` while editing. The complete `npm.cmd run check` add
 - Provider live tests remain separate from deterministic CI because upstream outages and markup changes are not deterministic source failures.
 
 ## Current deterministic baseline
+
+### 2026-09-27 Reel restoration and release candidate
+
+- `npm.cmd run check` passed TypeScript, ESLint, 16 Vitest files / 128 tests, generated browser-asset verification, production web build, and v1.0.13 release-metadata consistency.
+- The shared website/app source detector, Electron bridge, and Android policy now permit only individual public Instagram Reel URLs. Instagram posts, carousels, and Stories, Facebook, and X/Twitter remain rejected before download.
+- A public Reel resolved without cookies through the Node resolver and the bundled Windows yt-dlp downloaded an approximately 2.46 MiB MP4. This is one live provider sample, not proof of general Reel reliability.
+- Electron main/preload compilation, the local NSIS installer build, and the packaged app's engine-plus-public-Reel resolve smoke test passed. The bundled yt-dlp and FFmpeg binaries were found in the package. Capacitor sync, Android unit tests, lint, and debug APK assembly passed; the ARM64 APK contains the updated frontend. No Android device or emulator was attached, so installed APK transfers and in-place upgrade remain unverified.
+- The v1.0.14 manifest is prepared in the tagged source; it must not be deployed to the public website until both checksummed release assets exist. Installed Android transfers and in-place upgrade are intentionally marked unverified rather than passed.
+
+The following September 21 section is retained as historical evidence, not current architecture or support status.
 
 Verified locally on 2026-09-21:
 
@@ -77,7 +86,8 @@ No Android device or emulator was attached during Sprint 2. These results prove 
 | Source | Deterministic fixtures | Packaged Windows | Installed Android | Notes |
 | --- | --- | --- | --- | --- |
 | YouTube | Existing resolver/argument coverage | Pending refresh | Pending refresh | Video, audio, Shorts; no playlist expansion |
-| Instagram | Disabled in current product scope | Disabled | Disabled | Recognize links only to reject clearly |
+| Instagram Reels | Shared URL/policy fixtures; one live anonymous resolve and Windows media transfer on 2026-09-27 | Packaged installer pending manual run | Installed transfer pending | Individual public Reels only; no session or private-media promise |
+| Instagram posts/Stories | Rejected by shared URL/policy fixtures | Rejected by code; installed check pending | Rejected by code; installed check pending | Not advertised as supported |
 | Facebook | Disabled in current product scope | Disabled | Disabled | Recognize links only to reject clearly |
 | Threads | Existing resolver coverage | Pending refresh | Pending refresh | Public media only |
 | X/Twitter | Disabled in current product scope | Disabled | Disabled | Recognize links only to reject clearly |

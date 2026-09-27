@@ -25,8 +25,6 @@ jobs:
           node-version: 22
           cache: npm
 
-      - uses: dtolnay/rust-toolchain@stable
-
       - name: Find latest stable yt-dlp
         id: latest
         shell: pwsh
@@ -36,7 +34,7 @@ jobs:
           if ($version -notmatch '^\d{4}\.\d{2}\.\d{2}$') { throw "Unexpected yt-dlp tag: $version" }
           "version=$version" >> $env:GITHUB_OUTPUT
 
-      - name: Synchronize desktop and Android pins
+      - name: Update desktop yt-dlp pin
         run: node scripts/update-ytdlp-version.js "${{ steps.latest.outputs.version }}"
 
       - name: Install dependencies
@@ -62,15 +60,8 @@ jobs:
         continue-on-error: true
         run: node scripts/smoke-test-ytdlp.js
 
-      - name: Test Rust core
-        id: rust
-        if: steps.smoke.outcome == 'success'
-        continue-on-error: true
-        working-directory: src-tauri
-        run: cargo test --locked
-
       - name: Open tested yt-dlp update pull request
-        if: steps.rust.outcome == 'success'
+        if: steps.smoke.outcome == 'success'
         uses: peter-evans/create-pull-request@v7
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
@@ -81,11 +72,10 @@ jobs:
           body: |
             Automated weekly yt-dlp maintenance.
 
-            - Synchronized desktop and Android engine pins
+            - Updated the desktop engine pin (Android uses its own bundled engine)
             - Passed the complete project check
             - Prepared and version-verified the desktop sidecar
             - Completed a real public-video transfer
-            - Passed the Rust test suite
 
             Review and merge this PR. It does not publish a release automatically.
           labels: |
@@ -93,7 +83,7 @@ jobs:
             automated-maintenance
 
       - name: Create or update maintenance failure issue
-        if: always() && (steps.install.outcome == 'failure' || steps.checks.outcome == 'failure' || steps.sidecars.outcome == 'failure' || steps.smoke.outcome == 'failure' || steps.rust.outcome == 'failure')
+        if: always() && (steps.install.outcome == 'failure' || steps.checks.outcome == 'failure' || steps.sidecars.outcome == 'failure' || steps.smoke.outcome == 'failure')
         uses: actions/github-script@v7
         with:
           script: |
@@ -105,7 +95,6 @@ jobs:
               `Project checks: ${{ steps.checks.outcome }}`,
               `Sidecars: ${{ steps.sidecars.outcome }}`,
               `Real transfer: ${{ steps.smoke.outcome }}`,
-              `Rust tests: ${{ steps.rust.outcome }}`,
               '',
               `Run: ${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`,
             ].join('\n');
@@ -123,6 +112,6 @@ jobs:
             }
 
       - name: Fail when maintenance validation failed
-        if: always() && (steps.install.outcome == 'failure' || steps.checks.outcome == 'failure' || steps.sidecars.outcome == 'failure' || steps.smoke.outcome == 'failure' || steps.rust.outcome == 'failure')
+        if: always() && (steps.install.outcome == 'failure' || steps.checks.outcome == 'failure' || steps.sidecars.outcome == 'failure' || steps.smoke.outcome == 'failure')
         shell: pwsh
         run: throw 'Automated maintenance validation failed; see the issue and prior step logs.'
