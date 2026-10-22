@@ -1,5 +1,11 @@
 # Changelog
 
+## v1.0.15 - yt-dlp engine update and Windows update fallback
+
+- Updated and pinned the desktop yt-dlp engine to `2026.10.21` for improved media extraction compatibility.
+- Added a direct Windows installer button to the desktop update notice, alongside release notes, so an update can be downloaded manually if automatic installation does not finish.
+- Corrected the desktop notice so it no longer promises that automatic installation is already happening. The fallback opens only the expected versioned Savewave GitHub installer.
+
 ## v1.0.14 - public Instagram Reels and maintenance cleanup
 
 - Restored individual public Instagram Reel video and audio downloads through the local yt-dlp engine on Windows and Android, without requiring a Savewave account or session. Instagram posts, carousels, Stories, Facebook, and X remain unavailable; private or login-gated media is not supported.

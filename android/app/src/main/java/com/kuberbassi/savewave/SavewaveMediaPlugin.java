@@ -47,7 +47,7 @@ import org.json.JSONArray;
 @CapacitorPlugin(name = "SavewaveMedia")
 public class SavewaveMediaPlugin extends Plugin {
     private static final String TAG = "SavewaveMedia";
-    private static final String APP_VERSION = "1.0.14";
+    private static final String APP_VERSION = "1.0.15";
     private static final Set<String> TERMINAL_STATES = Set.of("completed", "cancelled", "error");
     private static final Pattern SPOTIFY_TRACK = Pattern.compile("^/track/([A-Za-z0-9]{22})/?$");
     private static final Pattern NEXT_DATA = Pattern.compile("(?s)<script[^>]*id=[\\\"']__NEXT_DATA__[\\\"'][^>]*>(.*?)</script>");

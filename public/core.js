@@ -1551,7 +1551,7 @@ var SavewaveCore = (() => {
       return capabilitiesFor("web");
     }
     async getEngineStatus() {
-      return { available: true, version: "1.0.14" };
+      return { available: true, version: "1.0.15" };
     }
     async getReleaseInfo() {
       return null;
