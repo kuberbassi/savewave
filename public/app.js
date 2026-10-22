@@ -315,9 +315,9 @@ const SavewaveApp = () => {
       setModalConfig({
         isOpen: true,
         title: `UPDATE ${release.version} AVAILABLE`,
-        message: isDesktopUpdate ? `${release.summary} Savewave will verify and install this update automatically. Your downloads are preserved.` : `${release.summary} Android will ask you to confirm installation. Install over this app to preserve its data; do not uninstall first.`,
-        primaryAction: isDesktopUpdate ? null : {
-          label: 'GET ANDROID UPDATE',
+        message: isDesktopUpdate ? `${release.summary} If the automatic update does not finish, download the Windows installer below and run it after closing Savewave. Your downloads are preserved.` : `${release.summary} Android will ask you to confirm installation. Install over this app to preserve its data; do not uninstall first.`,
+        primaryAction: {
+          label: isDesktopUpdate ? 'DOWNLOAD WINDOWS UPDATE' : 'GET ANDROID UPDATE',
           onClick: () => window.SavewaveCore.openExternal(release.downloadUrl)
         },
         secondaryAction: {

@@ -100,6 +100,7 @@ async function releaseInfo(): Promise<ReleaseInfo | null> {
     if (!response.ok) return null;
     const release = await response.json() as Omit<ReleaseInfo, 'updateAvailable'>;
     const downloadUrl = release.windowsDownloadUrl || release.downloadUrl;
+    if (!trustedInstaller(downloadUrl, release.version)) return null;
     for (const value of [downloadUrl, release.releaseUrl, release.changelogUrl]) {
       const url = new URL(value);
       if (url.protocol !== 'https:' || !TRUSTED_EXTERNAL_HOSTS.has(url.hostname)) return null;

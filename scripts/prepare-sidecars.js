@@ -19,7 +19,7 @@ const ffmpeg = require('ffmpeg-static');
 if (!ytDlp || !fs.existsSync(ytDlp)) throw new Error('Managed yt-dlp binary is unavailable. Run npm install.');
 if (!ffmpeg || !fs.existsSync(ffmpeg)) throw new Error('Managed FFmpeg binary is unavailable. Run npm install.');
 
-const ytDlpVersion = process.env.SAVEWAVE_YTDLP_VERSION || '2026.08.19';
+const ytDlpVersion = process.env.SAVEWAVE_YTDLP_VERSION || '2026.10.21';
 const update = spawnSync(ytDlp, ['--update-to', `stable@${ytDlpVersion}`], { encoding: 'utf8' });
 if (update.status !== 0) {
   throw new Error(`Could not prepare yt-dlp ${ytDlpVersion}: ${(update.stderr || update.stdout || '').trim()}`);

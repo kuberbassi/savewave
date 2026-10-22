@@ -37,6 +37,8 @@ An Authenticode code-signing certificate is recommended, not required for the on
 3. Deploy the versioned `public/client-version.json` only after both installers and checksums are public. The release script prepares it in the tagged commit but does not push `main` until the assets exist.
 4. Older desktop clients will automatically stage and launch the verified one-click installer on startup. A failure leaves the old app usable. Android offers the APK and requires a system install confirmation.
 
+The desktop update notice also provides a direct link to the exact versioned Windows installer. If automatic installation fails, download that file, close Savewave, and run it manually. This fallback is available only in clients released after the update-notice change; older installed clients cannot gain a new button without installing a newer build.
+
 Before publishing, test a cold start of an older packaged Windows client with the new manifest and checksum available; verify the new version launches and user data remains. On Android, install the new same-key, higher-version-code APK over the old app and verify the OS confirmation and preserved state. A unit test of the URL/checksum policy does not replace either installed upgrade test.
 
 The live manifest must never advertise a version before its installers exist. The Windows updater accepts only the expected versioned GitHub asset path and a matching published SHA-256 file. This guards against transfer corruption but is not equivalent to an Authenticode publisher signature; unsigned installers may still trigger Windows SmartScreen. Keep the GitHub repository and release workflow protected.
