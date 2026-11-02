@@ -23,7 +23,7 @@ import { DESKTOP_CHANNELS } from './bridge';
 import { launchWindowsInstaller, stageWindowsUpdate, trustedInstaller } from './updater';
 
 const executeFile = promisify(execFile);
-const CURRENT_VERSION = '1.0.16';
+const CURRENT_VERSION = '1.0.17';
 const RELEASE_MANIFEST = 'https://raw.githubusercontent.com/kuberbassi/savewave/main/public/client-version.json';
 const TRUSTED_EXTERNAL_HOSTS = new Set(['github.com', 'savewave.kuberbassi.com', 'kuberbassi.com', 'www.kuberbassi.com']);
 

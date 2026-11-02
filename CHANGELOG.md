@@ -1,5 +1,10 @@
 # Changelog
 
+## v1.0.17 - Instagram Reel login authentication
+
+- Added an on-demand, in-app Instagram login modal on desktop and Android to seamlessly access Reels requiring authentication.
+- Saved sessions persist securely on your device across updates and silently prompt to re-login if cookies expire.
+
 ## v1.0.16 - yt-dlp engine update
 
 - Updated and pinned the desktop yt-dlp engine to `2026.10.26` for improved media extraction compatibility.

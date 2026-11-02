@@ -1,9 +1,9 @@
 {
-  "version": "1.0.16",
-  "downloadUrl": "https://github.com/kuberbassi/savewave/releases/tag/v1.0.16",
-  "windowsDownloadUrl": "https://github.com/kuberbassi/savewave/releases/download/v1.0.16/Savewave_1.0.16_x64-setup.exe",
-  "androidDownloadUrl": "https://github.com/kuberbassi/savewave/releases/download/v1.0.16/Savewave-android-arm64.apk",
+  "version": "1.0.17",
+  "downloadUrl": "https://github.com/kuberbassi/savewave/releases/tag/v1.0.17",
+  "windowsDownloadUrl": "https://github.com/kuberbassi/savewave/releases/download/v1.0.17/Savewave_1.0.17_x64-setup.exe",
+  "androidDownloadUrl": "https://github.com/kuberbassi/savewave/releases/download/v1.0.17/Savewave-android-arm64.apk",
   "releaseUrl": "https://github.com/kuberbassi/savewave/releases",
   "changelogUrl": "https://github.com/kuberbassi/savewave/releases",
-  "summary": "yt-dlp engine update"
+  "summary": "Instagram Reel login authentication"
 }
