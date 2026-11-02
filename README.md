@@ -23,8 +23,14 @@
 Savewave is a clean, local-first media downloader. It automatically detects media sources, extracts best-available quality streams, and saves them directly to your device without accounts, cloud processing, or server uploads.
 
 - **Local Processing**: Extraction runs on-device via bundled `yt-dlp` and `FFmpeg`.
-- **Zero Cloud Storage**: No remote user database, account system, or media proxies.
-- **Public Content Only**: Savewave v1.0.14 supports public YouTube, individual public Instagram Reels, SoundCloud, direct media links, and Spotify Smart Match. Instagram posts/Stories, Facebook, and X/Twitter are not supported; private, login-gated, or DRM media is also unsupported. Installed Android Reel transfers still need real-device confirmation.
+- **Zero Cloud Storage**: No remote user database, tracking, or media proxies. All sessions and downloads remain strictly on your local device.
+- **On-Demand Instagram Authentication**: Seamless in-app login modal on Desktop and Android for Instagram Reels that require authentication. Sessions are stored locally on your device, persist across app updates, and silently prompt for re-login if cookies expire.
+- **Supported Sources**:
+  - **YouTube**: High-definition video and audio extraction powered by pinned, regularly-updated `yt-dlp`.
+  - **Instagram Reels**: Full video and audio extraction with local session authentication support. *(Instagram posts, carousels, and Stories remain unsupported).*
+  - **Spotify**: Smart Match discovery linking track metadata to exact, high-confidence audio streams.
+  - **SoundCloud & Direct Links**: Stream resolution and direct media file downloads.
+  *(Note: Facebook, X/Twitter, and DRM-protected media are not supported).*
 
 ---
 
@@ -32,11 +38,11 @@ Savewave is a clean, local-first media downloader. It automatically detects medi
 
 | Layer | Technologies | Responsibility |
 | --- | --- | --- |
-| **Frontend UI** | React 18, Tailwind CSS | Responsive Paste → Preview → Save interface |
+| **Frontend UI** | React 18, Tailwind CSS | Responsive Paste → Preview → Save interface & authentication modal |
 | **Core Logic** | TypeScript, Vitest | Source detection, capability gates, error handling, Spotify match scoring |
-| **Desktop App** | Electron, Node.js | Isolated IPC, bundled engines, native saving, verified GitHub updates |
+| **Desktop App** | Electron, Node.js | Isolated IPC, bundled engines, native saving, verified GitHub updates, and in-app Instagram login modal |
 | **Media Engine** | `yt-dlp`, `FFmpeg` | Local public media extraction and stream remuxing |
-| **Android App** | Capacitor, small Java bridge, `youtubedl-android` | Native engine and scoped `MediaStore` saving |
+| **Android App** | Capacitor, small Java bridge, `youtubedl-android` | Native engine, scoped `MediaStore` saving, and in-app WebView authentication |
 
 ---
 

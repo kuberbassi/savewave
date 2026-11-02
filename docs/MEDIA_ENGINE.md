@@ -12,7 +12,7 @@ Audio selects `bestaudio/best`, extracts the audio stream, and uses its natural 
 
 - YouTube: individual videos and Shorts; video or audio; playlists are intentionally not expanded.
 - Threads: publicly resolvable images and videos, bounded to 20 items.
-- Instagram: individual public Reels only, through yt-dlp; video or audio. Posts, carousels, and Stories remain unsupported.
+- Instagram: individual public Reels, through yt-dlp; video or audio. Supports on-demand in-app login authentication on desktop and Android. Posts, carousels, and Stories remain unsupported.
 - SoundCloud: publicly resolvable audio.
 - Spotify: public track metadata plus strict external-source Smart Match on desktop and Android; Spotify does not provide the downloaded audio.
 - Direct media: supported public HTTP(S) media links only.

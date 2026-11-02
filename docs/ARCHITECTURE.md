@@ -43,7 +43,7 @@ The retired Tauri/Rust/Kotlin implementation was removed from the maintained tre
 - User text is never interpolated into shell command strings.
 - Runtime payloads are validated before entering application state.
 - Downloads are job-scoped, cancellable, bounded, and cleaned on terminal paths.
-- Public Instagram Reel URLs are passed to yt-dlp on both installed clients without cookies. Other Instagram paths, Facebook, and X/Twitter links receive an unsupported-source response. A public Reel can still fail if Instagram denies anonymous extraction or changes its API.
+- Public Instagram Reel URLs are passed to yt-dlp on both installed clients, with an on-demand, in-app authentication prompt if Instagram requires a session. Stored session cookies remain locally on device, persist across app updates, and are automatically purged for re-login on expiry. Other Instagram paths, Facebook, and X/Twitter links receive an unsupported-source response.
 - Android publishes completed files to `Downloads/Savewave`; it does not request broad storage access or run a permanent background service.
 - Spotify uncertainty produces a safe rejection or explicit two-option choice; popularity is never identity evidence.
 - Windows updates are GitHub-release-only: the Electron client validates the versioned asset URL and checks its downloaded bytes against the release SHA-256 file before invoking the one-click installer. A failed check leaves the installed app open.
