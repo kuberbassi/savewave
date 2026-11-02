@@ -1,5 +1,9 @@
 # Changelog
 
+## v1.0.16 - yt-dlp engine update
+
+- Updated and pinned the desktop yt-dlp engine to `2026.10.26` for improved media extraction compatibility.
+
 ## v1.0.15 - yt-dlp engine update and Windows update fallback
 
 - Updated and pinned the desktop yt-dlp engine to `2026.10.21` for improved media extraction compatibility.

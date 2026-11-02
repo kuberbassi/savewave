@@ -1,9 +1,9 @@
 {
-  "version": "1.0.15",
-  "downloadUrl": "https://github.com/kuberbassi/savewave/releases/tag/v1.0.15",
-  "windowsDownloadUrl": "https://github.com/kuberbassi/savewave/releases/download/v1.0.15/Savewave_1.0.15_x64-setup.exe",
-  "androidDownloadUrl": "https://github.com/kuberbassi/savewave/releases/download/v1.0.15/Savewave-android-arm64.apk",
+  "version": "1.0.16",
+  "downloadUrl": "https://github.com/kuberbassi/savewave/releases/tag/v1.0.16",
+  "windowsDownloadUrl": "https://github.com/kuberbassi/savewave/releases/download/v1.0.16/Savewave_1.0.16_x64-setup.exe",
+  "androidDownloadUrl": "https://github.com/kuberbassi/savewave/releases/download/v1.0.16/Savewave-android-arm64.apk",
   "releaseUrl": "https://github.com/kuberbassi/savewave/releases",
   "changelogUrl": "https://github.com/kuberbassi/savewave/releases",
-  "summary": "yt-dlp engine update and Windows update fallback"
+  "summary": "yt-dlp engine update"
 }
