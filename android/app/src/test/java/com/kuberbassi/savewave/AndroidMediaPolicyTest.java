@@ -57,7 +57,8 @@ public class AndroidMediaPolicyTest {
         assertEquals("TIMEOUT", AndroidMediaPolicy.errorCode(new Exception("connection timed out")));
         assertEquals("RATE_LIMITED", AndroidMediaPolicy.errorCode(new Exception("HTTP 429")));
         assertEquals("SOURCE_REJECTED", AndroidMediaPolicy.errorCode(new Exception("HTTP 403 Forbidden")));
-        assertEquals("SOURCE_REJECTED", AndroidMediaPolicy.errorCode(new Exception("Instagram sent an empty media response")));
+        assertEquals("AUTH_REQUIRED", AndroidMediaPolicy.errorCode(new Exception("Instagram sent an empty media response")));
+        assertEquals("AUTH_REQUIRED", AndroidMediaPolicy.errorCode(new Exception("Instagram: Login required")));
         assertEquals("SOURCE_FORBIDDEN", AndroidMediaPolicy.errorCode(new Exception("Private post. Login required")));
         assertEquals("NETWORK_FAILED", AndroidMediaPolicy.errorCode(new Exception("IncompleteRead: 121474 bytes read")));
         assertEquals("STORAGE_FAILED", AndroidMediaPolicy.errorCode(new Exception("MediaStore failed")));

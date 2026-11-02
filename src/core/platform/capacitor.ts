@@ -32,6 +32,7 @@ interface SavewaveMediaPlugin {
   getSpotifyMetadata(options: { url: string }): Promise<TrackIdentity & { thumbnail?: string }>;
   searchCandidates(options: { query: string }): Promise<{ results: MatchCandidate[] }>;
   searchYoutubeMusic(options: { query: string; filter: 'songs' | 'videos' }): Promise<{ payload: unknown }>;
+  authenticateInstagram?(): Promise<{ success: boolean }>;
 }
 
 const mediaPlugin = registerPlugin<SavewaveMediaPlugin>('SavewaveMedia');
@@ -62,4 +63,9 @@ export class CapacitorMediaEngine implements MediaEngine {
   }
   cancelDownload(jobId: string) { return mediaPlugin.cancelDownload({ jobId }); }
   async getDownloadProgress(jobId: string) { return parseDownloadProgress(await mediaPlugin.getDownloadProgress({ jobId })); }
+  async authenticateInstagram(): Promise<boolean> {
+    if (!mediaPlugin.authenticateInstagram) return false;
+    const res = await mediaPlugin.authenticateInstagram();
+    return Boolean(res && res.success);
+  }
 }

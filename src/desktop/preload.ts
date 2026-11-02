@@ -10,6 +10,7 @@ const bridge: DesktopBridge = {
   cancelDownload: (jobId) => ipcRenderer.invoke(DESKTOP_CHANNELS.cancelDownload, jobId),
   getDownloadProgress: (jobId) => ipcRenderer.invoke(DESKTOP_CHANNELS.downloadProgress, jobId),
   openExternal: (url) => ipcRenderer.invoke(DESKTOP_CHANNELS.openExternal, url),
+  authenticateInstagram: () => ipcRenderer.invoke(DESKTOP_CHANNELS.authenticateInstagram),
 };
 
 contextBridge.exposeInMainWorld('savewaveDesktop', bridge);

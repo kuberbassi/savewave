@@ -455,6 +455,7 @@ var SavewaveCore = (() => {
     "SOURCE_UNAVAILABLE",
     "SOURCE_REJECTED",
     "SOURCE_FORBIDDEN",
+    "AUTH_REQUIRED",
     "SOURCE_NOT_FOUND",
     "RATE_LIMITED",
     "NETWORK_FAILED",
@@ -480,6 +481,7 @@ var SavewaveCore = (() => {
     SOURCE_UNAVAILABLE: "This media is unavailable.",
     SOURCE_REJECTED: "The source temporarily rejected this request.",
     SOURCE_FORBIDDEN: "This source requires access Savewave does not have.",
+    AUTH_REQUIRED: "Instagram requires a login to access this media.",
     SOURCE_NOT_FOUND: "This media no longer exists or is unavailable.",
     RATE_LIMITED: "The source is busy. Please wait and try again.",
     NETWORK_FAILED: "Could not reach the source. Check your connection.",
@@ -1456,6 +1458,9 @@ var SavewaveCore = (() => {
     async getDownloadProgress(jobId) {
       return parseDownloadProgress(await desktopBridge().getDownloadProgress(jobId));
     }
+    async authenticateInstagram() {
+      return Boolean(await desktopBridge().authenticateInstagram());
+    }
   };
 
   // src/core/spotify/search.ts
@@ -1538,6 +1543,11 @@ var SavewaveCore = (() => {
     }
     async getDownloadProgress(jobId) {
       return parseDownloadProgress(await mediaPlugin.getDownloadProgress({ jobId }));
+    }
+    async authenticateInstagram() {
+      if (!mediaPlugin.authenticateInstagram) return false;
+      const res = await mediaPlugin.authenticateInstagram();
+      return Boolean(res && res.success);
     }
   };
 

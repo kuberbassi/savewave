@@ -1,6 +1,6 @@
 export const ERROR_CODES = [
   'UNSUPPORTED_PLATFORM', 'UNSUPPORTED_SOURCE', 'INVALID_URL', 'SOURCE_UNAVAILABLE',
-  'SOURCE_REJECTED', 'SOURCE_FORBIDDEN', 'SOURCE_NOT_FOUND', 'RATE_LIMITED',
+  'SOURCE_REJECTED', 'SOURCE_FORBIDDEN', 'AUTH_REQUIRED', 'SOURCE_NOT_FOUND', 'RATE_LIMITED',
   'NETWORK_FAILED', 'TIMEOUT', 'NO_MEDIA_FOUND', 'POST_IMAGES_UNSUPPORTED', 'MATCH_CONFIDENCE_LOW', 'DOWNLOAD_FAILED',
   'EXTRACTOR_FAILED', 'FFMPEG_FAILED', 'PROCESSING_FAILED', 'PERMISSION_DENIED',
   'SAVE_FAILED', 'STORAGE_FAILED', 'ENGINE_UNAVAILABLE', 'ENGINE_OUTDATED', 'CANCELLED'
@@ -14,6 +14,7 @@ const messages: Record<ErrorCode, string> = {
   SOURCE_UNAVAILABLE: 'This media is unavailable.',
   SOURCE_REJECTED: 'The source temporarily rejected this request.',
   SOURCE_FORBIDDEN: 'This source requires access Savewave does not have.',
+  AUTH_REQUIRED: 'Instagram requires a login to access this media.',
   SOURCE_NOT_FOUND: 'This media no longer exists or is unavailable.',
   RATE_LIMITED: 'The source is busy. Please wait and try again.',
   NETWORK_FAILED: 'Could not reach the source. Check your connection.',

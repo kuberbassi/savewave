@@ -417,6 +417,32 @@ const SavewaveApp = () => {
     } catch (err) {
       if (controller.signal.aborted && resolveRequestRef.current !== controller) return;
       const normalized = window.SavewaveCore.normalizeError(err);
+      if (normalized.code === 'AUTH_REQUIRED' && engineRef.current?.authenticateInstagram) {
+        setModalConfig({
+          isOpen: true,
+          title: 'INSTAGRAM LOGIN REQUIRED',
+          message: 'Instagram blocked anonymous access to this Reel. Log in once to proceed; your session stays securely on your device.',
+          primaryAction: {
+            label: 'LOG IN TO INSTAGRAM',
+            onClick: async () => {
+              closeModal();
+              try {
+                const authed = await engineRef.current.authenticateInstagram();
+                if (authed) {
+                  // Retry resolving smoothly
+                  setTimeout(() => handleResolve(), 300);
+                } else {
+                  showAlert('Instagram login was cancelled.', 'LOGIN CANCELLED');
+                }
+              } catch {
+                showAlert('Failed to complete Instagram login.', 'LOGIN FAILED');
+              }
+            }
+          },
+          secondaryAction: { label: 'CANCEL', onClick: closeModal }
+        });
+        return;
+      }
       const message = controller.signal.aborted || (err && err.name === 'AbortError')
         ? 'The resolver took too long. Please retry in a moment.'
         : normalized.message;
@@ -484,6 +510,31 @@ const SavewaveApp = () => {
       showAlert(completionMessage, 'DOWNLOAD COMPLETE');
     } catch (error) {
       const normalized = window.SavewaveCore.normalizeError(error);
+      if (normalized.code === 'AUTH_REQUIRED' && engineRef.current?.authenticateInstagram) {
+        setModalConfig({
+          isOpen: true,
+          title: 'INSTAGRAM LOGIN REQUIRED',
+          message: 'Instagram blocked anonymous access to this Reel. Log in once to proceed; your session stays securely on your device.',
+          primaryAction: {
+            label: 'LOG IN TO INSTAGRAM',
+            onClick: async () => {
+              closeModal();
+              try {
+                const authed = await engineRef.current.authenticateInstagram();
+                if (authed) {
+                  setTimeout(() => startNativeDownload(), 300);
+                } else {
+                  showAlert('Instagram login was cancelled.', 'LOGIN CANCELLED');
+                }
+              } catch {
+                showAlert('Failed to complete Instagram login.', 'LOGIN FAILED');
+              }
+            }
+          },
+          secondaryAction: { label: 'CANCEL', onClick: closeModal }
+        });
+        return;
+      }
       const message = error.name === 'AbortError'
         ? 'Download preparation took too long. Please retry.'
         : (error.message && error.message !== error.code ? error.message : normalized.message);

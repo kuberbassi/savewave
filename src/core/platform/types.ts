@@ -8,4 +8,5 @@ export interface MediaEngine {
   downloadMedia(request: DownloadRequest): Promise<DownloadJob>;
   cancelDownload(jobId: string): Promise<void>;
   getDownloadProgress(jobId: string): Promise<DownloadProgress>;
+  authenticateInstagram?(): Promise<boolean>;
 }

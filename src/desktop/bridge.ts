@@ -18,6 +18,7 @@ export const DESKTOP_CHANNELS = {
   cancelDownload: 'savewave:cancel-download',
   downloadProgress: 'savewave:download-progress',
   openExternal: 'savewave:open-external',
+  authenticateInstagram: 'savewave:authenticate-instagram',
 } as const;
 
 export interface DesktopBridge {
@@ -29,4 +30,5 @@ export interface DesktopBridge {
   cancelDownload(jobId: string): Promise<void>;
   getDownloadProgress(jobId: string): Promise<DownloadProgress>;
   openExternal(url: string): Promise<void>;
+  authenticateInstagram(): Promise<boolean>;
 }

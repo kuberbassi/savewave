@@ -26,4 +26,5 @@ export class ElectronMediaEngine implements MediaEngine {
   }
   cancelDownload(jobId: string) { return desktopBridge().cancelDownload(jobId); }
   async getDownloadProgress(jobId: string) { return parseDownloadProgress(await desktopBridge().getDownloadProgress(jobId)); }
+  async authenticateInstagram(): Promise<boolean> { return Boolean(await desktopBridge().authenticateInstagram()); }
 }

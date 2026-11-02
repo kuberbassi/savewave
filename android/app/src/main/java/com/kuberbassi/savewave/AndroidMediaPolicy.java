@@ -103,14 +103,20 @@ final class AndroidMediaPolicy {
     static String errorCode(Throwable error) {
         String message = error.getMessage() == null ? "" : error.getMessage().toLowerCase(Locale.ROOT);
         if (message.contains("cancel")) return "CANCELLED";
-        if (message.contains("empty media response")) return "SOURCE_REJECTED";
+        if (message.contains("empty media response") || message.contains("login required") ||
+            message.contains("log in") || message.contains("sign in") || message.contains("cookies")) {
+            if (message.contains("instagram")) return "AUTH_REQUIRED";
+            return "SOURCE_FORBIDDEN";
+        }
         if ((message.contains("instagram") && message.contains("no video formats found")) ||
             message.contains("instagram carousel item could not be resolved")) return "POST_IMAGES_UNSUPPORTED";
         if (message.contains("private network") || message.contains("unsupported media link")) return "INVALID_URL";
         if (message.contains("timed out") || message.contains("timeout")) return "TIMEOUT";
-        if (message.contains("login required") || message.contains("log in") || message.contains("sign in") || message.contains("private post") ||
-            message.contains("private video") || message.contains("private account")) return "SOURCE_FORBIDDEN";
-        if (message.contains("403") || message.contains("forbidden")) return "SOURCE_REJECTED";
+        if (message.contains("private post") || message.contains("private video") || message.contains("private account")) return "SOURCE_FORBIDDEN";
+        if (message.contains("403") || message.contains("forbidden")) {
+            if (message.contains("instagram")) return "AUTH_REQUIRED";
+            return "SOURCE_REJECTED";
+        }
         if (message.contains("404") || message.contains("not found")) return "SOURCE_NOT_FOUND";
         if (message.contains("no video formats found") || message.contains("requested format is not available")) return "NO_MEDIA_FOUND";
         if (message.contains("429") || message.contains("too many requests")) return "RATE_LIMITED";
@@ -129,6 +135,7 @@ final class AndroidMediaPolicy {
             case "INVALID_URL" -> "Unsupported media link.";
             case "CANCELLED" -> "Download cancelled.";
             case "TIMEOUT" -> "The source took too long to respond.";
+            case "AUTH_REQUIRED" -> "Instagram requires a login to access this media.";
             case "SOURCE_FORBIDDEN" -> "This source requires access Savewave does not have.";
             case "SOURCE_REJECTED" -> "The source temporarily rejected this request. Please try again later.";
             case "SOURCE_NOT_FOUND" -> "This media no longer exists or is unavailable.";
