@@ -5,7 +5,7 @@
 
   **Paste → Resolve → Preview → Save**
 
-  A privacy-focused media saver for public video, audio, and image links running entirely on your device.
+  A privacy-focused media saver for public video and audio running entirely on your device.
 
   [Official Website](https://savewave.kuberbassi.com/) · [Changelog](CHANGELOG.md) · [Maintenance Guide](docs/MAINTENANCE.md) · [License](LICENSE)
 
