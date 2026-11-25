@@ -43,8 +43,24 @@ data class ReleaseInfo(
 )
 
 object SavewaveRustBridge {
-    init {
-        System.loadLibrary("savewave_core")
+    @Volatile
+    private var loaded: Boolean = false
+    @Volatile
+    private var loadError: String? = null
+
+    private fun ensureLoaded(): Boolean {
+        if (loaded) return true
+        return synchronized(this) {
+            if (loaded) return true
+            try {
+                System.loadLibrary("savewave_core")
+                loaded = true
+                true
+            } catch (t: Throwable) {
+                loadError = t.message ?: t.javaClass.simpleName
+                false
+            }
+        }
     }
 
     @JvmStatic external fun nativeDetectSource(url: String): String
@@ -55,6 +71,9 @@ object SavewaveRustBridge {
     @JvmStatic external fun nativeFetchReleaseInfo(): String
 
     fun detectSource(url: String): SourceDetection {
+        if (!ensureLoaded()) {
+            return SourceDetection("unknown", false, url.trim())
+        }
         val json = JSONObject(nativeDetectSource(url))
         return SourceDetection(
             source = json.optString("source", "unknown"),
@@ -64,6 +83,9 @@ object SavewaveRustBridge {
     }
 
     fun validateUrl(url: String): Result<String> {
+        if (!ensureLoaded()) {
+            return Result.failure(IllegalStateException("Rust core failed to load: $loadError"))
+        }
         val json = JSONObject(nativeValidateUrl(url))
         return if (json.optBoolean("valid", false)) {
             Result.success(json.optString("url", url.trim()))
@@ -73,6 +95,9 @@ object SavewaveRustBridge {
     }
 
     fun resolveSpotify(url: String): Result<ResolvedMedia> {
+        if (!ensureLoaded()) {
+            return Result.failure(IllegalStateException("ENGINE_UNAVAILABLE:Rust core failed to load: $loadError"))
+        }
         val json = JSONObject(nativeResolveSpotify(url))
         if (!json.optBoolean("ok", false)) {
             val code = json.optString("code", "MATCH_CONFIDENCE_LOW")
@@ -113,6 +138,7 @@ object SavewaveRustBridge {
     }
 
     fun classifyError(raw: String): ErrorClassification {
+        if (!ensureLoaded()) return ErrorClassification("DOWNLOAD_FAILED", raw.ifBlank { "Download failed." })
         val json = JSONObject(nativeClassifyError(raw))
         return ErrorClassification(
             code = json.optString("code", "DOWNLOAD_FAILED"),
@@ -120,9 +146,11 @@ object SavewaveRustBridge {
         )
     }
 
-    fun sanitizeFilename(raw: String): String = nativeSanitizeFilename(raw)
+    fun sanitizeFilename(raw: String): String =
+        if (ensureLoaded()) nativeSanitizeFilename(raw) else raw.replace(Regex("[^A-Za-z0-9._ -]"), "_").take(80)
 
     fun fetchReleaseInfo(): ReleaseInfo? {
+        if (!ensureLoaded()) return null
         val raw = nativeFetchReleaseInfo()
         if (raw.isBlank() || raw == "null") return null
         val json = JSONObject(raw)
