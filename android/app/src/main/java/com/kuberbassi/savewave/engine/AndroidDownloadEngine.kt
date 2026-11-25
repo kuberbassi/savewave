@@ -161,6 +161,42 @@ class AndroidDownloadEngine(private val context: Context) {
         activeProcessId = jobId
         val tempDir = File(context.cacheDir, "savewave/$jobId").apply { mkdirs() }
         try {
+            if (media.platform == "direct") {
+                val urlName = media.sourceUrl.substringAfterLast('/').substringBefore('?').ifBlank { "direct-media.bin" }
+                val safeName = SavewaveRustBridge.sanitizeFilename(urlName)
+                val outFile = File(tempDir, safeName)
+                val conn = (java.net.URL(media.sourceUrl).openConnection() as java.net.HttpURLConnection).apply {
+                    connectTimeout = 15_000
+                    readTimeout = 60_000
+                    setRequestProperty("User-Agent", "Savewave/2.0")
+                }
+                try {
+                    if (conn.responseCode !in 200..299) {
+                        return@withContext Result.failure(IllegalStateException("DOWNLOAD_FAILED:HTTP ${conn.responseCode}"))
+                    }
+                    val total = conn.contentLengthLong
+                    conn.inputStream.use { input ->
+                        outFile.outputStream().use { output ->
+                            val buf = ByteArray(16 * 1024)
+                            var copied = 0L
+                            var read: Int
+                            while (input.read(buf).also { read = it } != -1) {
+                                output.write(buf, 0, read)
+                                copied += read
+                                if (total > 0) {
+                                    onProgress(((copied * 100f) / total).coerceIn(0f, 99f))
+                                }
+                            }
+                        }
+                    }
+                } finally {
+                    conn.disconnect()
+                }
+                onProgress(100f)
+                val publishedName = publishToDownloads(outFile)
+                return@withContext Result.success(publishedName)
+            }
+
             val safeTitle = SavewaveRustBridge.sanitizeFilename(media.title)
             val isSocial = media.platform == "instagram" || media.platform == "threads"
             val req = YoutubeDLRequest(media.sourceUrl).apply {

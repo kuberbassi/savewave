@@ -355,6 +355,97 @@ pub async fn start_download_job(
         .map_err(|_| SavewaveError::from_code(ErrorCode::DownloadFailed))?;
 
     let downloads_dir = dirs::download_dir().unwrap_or_else(std::env::temp_dir);
+
+    // Direct media links (.mp4, .mp3, .png, .jpg, .webp, etc.) download natively via HTTP
+    // instead of yt-dlp, so direct images and raw media files always succeed instantaneously.
+    if source == MediaSource::Direct {
+        let parsed = url::Url::parse(&request.url)
+            .map_err(|_| SavewaveError::from_code(ErrorCode::InvalidUrl))?;
+        let raw_name = parsed
+            .path_segments()
+            .and_then(|mut s| s.next_back())
+            .filter(|s| !s.is_empty())
+            .unwrap_or("direct-media");
+        let ext = Path::new(raw_name)
+            .extension()
+            .and_then(|e| e.to_str())
+            .unwrap_or("bin");
+        let stem = request
+            .title
+            .as_deref()
+            .map(|t| sanitize_filename(t, 100))
+            .unwrap_or_else(|| sanitize_filename(raw_name, 100));
+        let filename = if stem.to_ascii_lowercase().ends_with(&format!(".{}", ext.to_ascii_lowercase())) {
+            stem
+        } else {
+            format!("{stem}.{ext}")
+        };
+        let dest_path = downloads_dir.join(&filename);
+        let initial = DownloadProgress {
+            job_id: job_id.clone(),
+            state: DownloadState::Downloading,
+            percent: Some(5.0),
+            downloaded_bytes: None,
+            total_bytes: None,
+            speed: None,
+            eta: None,
+            filename: Some(filename.clone()),
+            filenames: vec![filename.clone()],
+            error_code: None,
+            error_message: None,
+        };
+        store.write().await.insert(
+            job_id.clone(),
+            ActiveJob {
+                progress: initial.clone(),
+                child: None,
+                temp_dir: temp_dir.clone(),
+            },
+        );
+
+        let store_bg = Arc::clone(&store);
+        let job_id_bg = job_id.clone();
+        let req_url = request.url.clone();
+        tokio::spawn(async move {
+            let client = reqwest::Client::builder()
+                .timeout(std::time::Duration::from_secs(120))
+                .user_agent("Savewave/2.0")
+                .build();
+            let res = match client {
+                Ok(c) => match c.get(&req_url).send().await {
+                    Ok(r) if r.status().is_success() => r.bytes().await.map_err(|e| e.to_string()),
+                    Ok(r) => Err(format!("HTTP error {}", r.status().as_u16())),
+                    Err(e) => Err(e.to_string()),
+                },
+                Err(e) => Err(e.to_string()),
+            };
+            let write_res = match res {
+                Ok(bytes) => tokio::fs::write(&dest_path, &bytes).await.map_err(|e| e.to_string()),
+                Err(e) => Err(e),
+            };
+            let mut guard = store_bg.write().await;
+            if let Some(job) = guard.get_mut(&job_id_bg) {
+                if job.progress.state != DownloadState::Cancelled {
+                    match write_res {
+                        Ok(()) => {
+                            job.progress.state = DownloadState::Completed;
+                            job.progress.percent = Some(100.0);
+                        }
+                        Err(err_text) => {
+                            let code = classify_error_text(&err_text);
+                            job.progress.state = DownloadState::Error;
+                            job.progress.error_code = Some(code.as_str().to_string());
+                            job.progress.error_message = Some(code.user_message().to_string());
+                        }
+                    }
+                }
+            }
+            let _ = tokio::fs::remove_dir_all(&temp_dir).await;
+        });
+
+        return Ok(initial);
+    }
+
     let policy = create_download_policy(request.mode, Some(source));
     let safe_title = sanitize_filename(request.title.as_deref().unwrap_or("media"), 100);
     let ytdlp = resolve_binary("yt-dlp");

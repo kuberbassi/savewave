@@ -19,12 +19,6 @@ const OfficialIcon = ({
   if (name === 'INSTAGRAM') return /*#__PURE__*/React.createElement("svg", props, /*#__PURE__*/React.createElement("path", {
     d: "M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919C8.417 2.175 8.796 2.163 12 2.163zm0 3.675a6.162 6.162 0 100 12.324 6.162 6.162 0 000-12.324zm0 10.162a4 4 0 110-8 4 4 0 010 8zm6.406-11.845a1.44 1.44 0 100 2.881 1.44 1.44 0 000-2.881z"
   }));
-  if (name === 'FACEBOOK') return /*#__PURE__*/React.createElement("svg", props, /*#__PURE__*/React.createElement("path", {
-    d: "M24 12.073C24 5.446 18.627.073 12 .073S0 5.446 0 12.073c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"
-  }));
-  if (name === 'TWITTER') return /*#__PURE__*/React.createElement("svg", props, /*#__PURE__*/React.createElement("path", {
-    d: "M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"
-  }));
   if (name === 'SPOTIFY') return /*#__PURE__*/React.createElement("svg", props, /*#__PURE__*/React.createElement("path", {
     d: "M12 0C5.376 0 0 5.376 0 12s5.376 12 12 12 12-5.376 12-12S18.624 0 12 0zm5.521 17.34c-.24.359-.66.48-1.021.24-2.82-1.74-6.36-2.101-10.561-1.141-.418.122-.779-.179-.899-.539-.12-.421.18-.78.54-.9 4.56-1.021 8.52-.6 11.64 1.32.42.18.479.659.301 1.02zm1.44-3.3c-.301.42-.841.6-1.262.3-3.239-1.98-8.159-2.58-11.939-1.38-.479.12-1.02-.12-1.14-.6-.12-.48.12-1.021.6-1.141 4.38-1.319 9.78-.658 13.5 1.621.361.181.54.78.241 1.2zm.12-3.36C15.24 8.4 8.82 8.16 5.16 9.301c-.6.18-1.2-.18-1.38-.72-.18-.6.18-1.2.72-1.38 4.2-1.261 11.28-1.02 15.721 1.621.539.3.719 1.02.419 1.56-.299.421-1.02.599-1.559.298z"
   }));
@@ -46,17 +40,17 @@ const DownloadButton = ({
   href,
   label,
   detail,
-  primary = false,
-  disabled = false
+  primary = false
 }) => /*#__PURE__*/React.createElement("a", {
-  className: `landing-download btn-chamfer ${primary ? 'is-primary' : ''} ${disabled ? 'is-disabled' : ''}`,
-  href: disabled ? undefined : href,
-  "aria-disabled": disabled || undefined
+  className: `landing-download btn-chamfer ${primary ? 'is-primary' : ''}`,
+  href: href
 }, /*#__PURE__*/React.createElement("span", null, label), /*#__PURE__*/React.createElement("small", null, detail));
 const LandingPage = () => {
   const [windowsUrl, setWindowsUrl] = React.useState(RELEASE_PAGE);
   const [androidUrl, setAndroidUrl] = React.useState(RELEASE_PAGE);
+  const [releaseNotesUrl, setReleaseNotesUrl] = React.useState(RELEASE_PAGE);
   const [appVersion, setAppVersion] = React.useState(BUNDLED_VERSION);
+  const [summary, setSummary] = React.useState('Rust core rewrite, Spotify Matcher v2, Tauri v2 desktop, Native Kotlin Android, auto-updating yt-dlp.');
   React.useEffect(() => {
     fetch('/client-version.json', {
       cache: 'no-store'
@@ -64,7 +58,9 @@ const LandingPage = () => {
       const downloadUrl = release.windowsDownloadUrl || release.downloadUrl;
       if (typeof downloadUrl === 'string' && downloadUrl.startsWith('https://github.com/')) setWindowsUrl(downloadUrl);
       if (typeof release.androidDownloadUrl === 'string' && release.androidDownloadUrl.startsWith('https://github.com/')) setAndroidUrl(release.androidDownloadUrl);
+      if (typeof release.changelogUrl === 'string' && release.changelogUrl.startsWith('https://github.com/')) setReleaseNotesUrl(release.changelogUrl);
       if (/^\d+\.\d+\.\d+$/.test(release.version)) setAppVersion(release.version);
+      if (typeof release.summary === 'string' && release.summary.trim()) setSummary(release.summary.trim());
     }).catch(() => {});
   }, []);
   return /*#__PURE__*/React.createElement("div", {
@@ -83,46 +79,64 @@ const LandingPage = () => {
     height: "36"
   }), /*#__PURE__*/React.createElement("span", {
     className: "font-bold tracking-tighter text-xl text-black"
-  }, "SAVEWAVE")), /*#__PURE__*/React.createElement("a", {
+  }, "SAVEWAVE"), /*#__PURE__*/React.createElement("span", {
+    className: "hidden sm:inline-block font-mono text-[10px] font-bold tracking-widest bg-black/15 text-black px-2 py-0.5"
+  }, "v", appVersion, " · RUST CORE")), /*#__PURE__*/React.createElement("div", {
+    className: "flex items-center gap-3"
+  }, /*#__PURE__*/React.createElement("a", {
+    href: releaseNotesUrl,
+    target: "_blank",
+    rel: "noopener noreferrer",
+    className: "hidden md:inline-block font-mono text-xs font-bold tracking-wider text-black/80 hover:text-black px-3 py-2"
+  }, "RELEASE NOTES"), /*#__PURE__*/React.createElement("a", {
     href: "#download",
     className: "btn-chamfer bg-[#0d0d0e] text-white font-mono text-xs font-bold tracking-wider px-6 py-3"
-  }, "GET THE APP")), /*#__PURE__*/React.createElement("main", {
+  }, "GET THE APP"))), /*#__PURE__*/React.createElement("main", {
     className: "relative z-10 flex-1"
   }, /*#__PURE__*/React.createElement("section", {
     className: "max-w-6xl mx-auto px-4 sm:px-6 pt-12 md:pt-20 pb-14 grid grid-cols-1 lg:grid-cols-12 gap-10 lg:gap-12 items-center"
   }, /*#__PURE__*/React.createElement("div", {
     className: "lg:col-span-6"
   }, /*#__PURE__*/React.createElement("div", {
-    className: "font-mono text-xs font-bold tracking-widest text-black/70 mb-4"
-  }, "LOCAL MEDIA DOWNLOADER"), /*#__PURE__*/React.createElement("h1", {
+    className: "inline-flex items-center gap-2 font-mono text-[11px] font-bold tracking-widest text-black/80 bg-black/10 px-3 py-1 mb-5"
+  }, /*#__PURE__*/React.createElement("span", {
+    className: "w-2 h-2 rounded-full bg-black"
+  }), "RUST CORE · TAURI V2 · NATIVE KOTLIN"), /*#__PURE__*/React.createElement("h1", {
     className: "text-5xl md:text-6xl font-bold tracking-tight text-black leading-tight mb-6"
   }, "Paste. Resolve. Save.", /*#__PURE__*/React.createElement("br", null), /*#__PURE__*/React.createElement("span", {
     className: "opacity-80"
-  }, "On your device.")), /*#__PURE__*/React.createElement("p", {
+  }, "100% on your device.")), /*#__PURE__*/React.createElement("p", {
     className: "text-lg md:text-xl text-black/90 leading-relaxed max-w-xl mb-8"
-  }, "Download Savewave once, then use the same simple workflow inside the app. No accounts, cloud extraction, media uploads, or quality menus."), /*#__PURE__*/React.createElement("div", {
+  }, "One shared Rust engine powering native Windows and Android apps. No accounts, no cloud proxies, no tracking — and ", /*#__PURE__*/React.createElement("code", {
+    className: "font-mono font-bold"
+  }, "yt-dlp"), " updates itself automatically."), /*#__PURE__*/React.createElement("div", {
     id: "download",
     className: "landing-downloads"
   }, /*#__PURE__*/React.createElement(DownloadButton, {
     href: windowsUrl,
     label: "DOWNLOAD FOR WINDOWS",
-    detail: "WINDOWS 10/11 · 64-BIT",
+    detail: "v2.0.0 · 49.6 MB · TAURI V2 EXE",
     primary: true
   }), /*#__PURE__*/React.createElement(DownloadButton, {
     href: androidUrl,
     label: "DOWNLOAD FOR ANDROID",
-    detail: "ANDROID 10+ · ARM64 APK"
-  })), /*#__PURE__*/React.createElement("p", {
-    className: "font-mono text-[10px] text-black/65 mt-4"
-  }, "Android may ask permission to install apps from this source. Keep at least 300 MB free while Android verifies and installs the 72 MB package.")), /*#__PURE__*/React.createElement("div", {
+    detail: "v2.0.0 · 56.1 MB · KOTLIN ARM64 APK"
+  })), /*#__PURE__*/React.createElement("div", {
+    className: "flex flex-wrap items-center gap-4 mt-4 font-mono text-[10px] text-black/75"
+  }, /*#__PURE__*/React.createElement("span", null, "Windows 10/11 (x64) · Auto-updating"), /*#__PURE__*/React.createElement("span", null, "•"), /*#__PURE__*/React.createElement("span", null, "Android 10+ (arm64) · Share-to-Savewave"), /*#__PURE__*/React.createElement("span", null, "•"), /*#__PURE__*/React.createElement("a", {
+    href: releaseNotesUrl,
+    target: "_blank",
+    rel: "noopener noreferrer",
+    className: "underline font-bold text-black hover:opacity-80"
+  }, "v", appVersion, " Release Notes →"))), /*#__PURE__*/React.createElement("div", {
     className: "lg:col-span-6 paper-dark-texture border border-white/15 p-5 md:p-7 shadow-2xl btn-chamfer"
   }, /*#__PURE__*/React.createElement("div", {
     className: "flex justify-between items-center mb-6"
   }, /*#__PURE__*/React.createElement("span", {
     className: "font-mono text-[10px] tracking-widest text-[#e03d27] font-bold border border-[#e03d27]/40 px-2.5 py-1"
   }, "SUPPORTED SOURCES"), /*#__PURE__*/React.createElement("span", {
-    className: "font-mono text-[10px] text-zinc-500"
-  }, "AUTO DETECT")), /*#__PURE__*/React.createElement("div", {
+    className: "font-mono text-[10px] text-emerald-400 font-bold"
+  }, "AUTO DETECT · LOCAL")), /*#__PURE__*/React.createElement("div", {
     className: "platform-grid mb-6"
   }, PLATFORMS.map(({
     name,
@@ -139,7 +153,7 @@ const LandingPage = () => {
     className: "font-mono text-[7px] text-[#e03d27] tracking-wider mt-1"
   }, capability)))), /*#__PURE__*/React.createElement("p", {
     className: "text-center font-mono text-[11px] text-zinc-400 border-t border-white/10 pt-4"
-  }, "Public media only. Private, login-gated and DRM-protected content is not supported."))), /*#__PURE__*/React.createElement("div", {
+  }, summary))), /*#__PURE__*/React.createElement("div", {
     className: "relative z-10 bg-black text-white py-3.5 border-y border-white/10 overflow-hidden font-mono text-xs tracking-widest uppercase"
   }, /*#__PURE__*/React.createElement("div", {
     className: "landing-marquee-track",
@@ -153,10 +167,23 @@ const LandingPage = () => {
   }, /*#__PURE__*/React.createElement("span", null, item), /*#__PURE__*/React.createElement("b", {
     "aria-hidden": "true"
   }, "•"))))))), /*#__PURE__*/React.createElement("section", {
-    className: "paper-dark-texture text-white border-y border-white/10"
+    className: "paper-dark-texture text-white border-b border-white/10"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "max-w-6xl mx-auto px-6 py-10 grid grid-cols-2 md:grid-cols-4 gap-6 text-center font-mono"
+  }, [['-72.6%', 'SMALLER WINDOWS EXE', '181 MB → 49.6 MB'], ['100%', 'SPOTIFY MATCH RATE', '2.3× – 3.5× faster'], ['24H', 'AUTO YT-DLP UPDATES', 'Self-maintaining'], ['0 KB', 'CLOUD STORAGE', '100% on-device']].map(([stat, label, sub]) => /*#__PURE__*/React.createElement("div", {
+    key: label,
+    className: "bg-[#0d0d0e] border border-white/10 p-5 btn-chamfer"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "text-3xl md:text-4xl font-bold text-[#e03d27]"
+  }, stat), /*#__PURE__*/React.createElement("div", {
+    className: "text-[11px] font-bold tracking-widest text-white mt-2"
+  }, label), /*#__PURE__*/React.createElement("div", {
+    className: "text-[10px] text-zinc-500 mt-1"
+  }, sub))))), /*#__PURE__*/React.createElement("section", {
+    className: "paper-dark-texture text-white border-b border-white/10"
   }, /*#__PURE__*/React.createElement("div", {
     className: "max-w-6xl mx-auto px-6 py-10 grid grid-cols-1 sm:grid-cols-3 gap-8 text-center"
-  }, [['01', 'INSTALL', 'Install the native Savewave client.'], ['02', 'PASTE', 'Paste a public media link inside the app.'], ['03', 'SAVE', 'Preview and save the best available source.']].map(([n, t, d]) => /*#__PURE__*/React.createElement("div", {
+  }, [['01', 'INSTALL', 'Install the native Rust-powered Windows or Android app once.'], ['02', 'PASTE OR SHARE', 'Paste any link or share directly from YouTube, Spotify, or Instagram.'], ['03', 'SAVE', 'Preview and save best available video, audio, or direct media locally.']].map(([n, t, d]) => /*#__PURE__*/React.createElement("div", {
     key: n
   }, /*#__PURE__*/React.createElement("span", {
     className: "font-mono text-[#e03d27] text-xs"
@@ -174,9 +201,9 @@ const LandingPage = () => {
     className: "font-mono text-[10px] tracking-widest text-[#e03d27]"
   }, "PRIVACY BY ARCHITECTURE"), /*#__PURE__*/React.createElement("h2", {
     className: "text-3xl font-bold mt-2"
-  }, "Your media stays off our servers.")), /*#__PURE__*/React.createElement("div", {
+  }, "Your media never touches a server.")), /*#__PURE__*/React.createElement("div", {
     className: "privacy-grid"
-  }, [['LOCAL PROCESSING', 'Extraction and media processing run inside the installed Savewave application.'], ['NO ACCOUNTS', 'No registration, login, user profile, or remote application database.'], ['NO MEDIA UPLOAD', 'Savewave does not upload or permanently store downloaded media in the cloud.'], ['ON-DEVICE HISTORY', 'Bounded download history remains inside the installed app and can be cleared.'], ['PUBLIC MEDIA ONLY', 'Private, login-gated, cookie-only, paid, and DRM-protected content is unsupported.'], ['HONEST PRIVACY', 'Source platforms still receive your device network requests; anonymity is not promised.']].map(([title, copy]) => /*#__PURE__*/React.createElement("article", {
+  }, [['RUST CORE ENGINE', 'Source detection, Spotify Matcher v2, and URL safety run natively in Rust on your device.'], ['AUTO-UPDATING YT-DLP', 'Both Windows and Android silently update yt-dlp every 24h in the background.'], ['DIRECT MEDIA SUPPORT', 'Direct .mp4, .mp3, .png, .jpg, and .webp links stream natively without extra hops.'], ['ON-DEVICE INSTAGRAM AUTH', 'If Instagram asks for login on a Reel, cookies stay strictly on your device.'], ['NO ACCOUNTS OR CLOUD', 'Zero user database, zero telemetry, zero remote download history.'], ['OPEN SOURCE & VERIFIED', 'GitHub Releases with SHA-256 checksum verification for Windows updates.']].map(([title, copy]) => /*#__PURE__*/React.createElement("article", {
     className: "privacy-card",
     key: title
   }, /*#__PURE__*/React.createElement("h3", {
@@ -185,10 +212,13 @@ const LandingPage = () => {
     className: "text-sm text-zinc-400 leading-relaxed"
   }, copy))))))), /*#__PURE__*/React.createElement("footer", {
     className: "relative z-10 bg-[#08080a] border-t border-white/10 px-6 py-8 text-center font-mono text-xs text-zinc-400"
-  }, "© 2026 SAVEWAVE · VERSION ", appVersion, " · LOCAL PROCESSING · ZERO DATABASE · ", /*#__PURE__*/React.createElement("a", {
+  }, "© 2026 SAVEWAVE · v", appVersion, " · RUST CORE ·", ' ', /*#__PURE__*/React.createElement("a", {
+    className: "text-white hover:opacity-80 transition-opacity",
+    href: releaseNotesUrl
+  }, "RELEASE NOTES"), " ·", ' ', /*#__PURE__*/React.createElement("a", {
     className: "text-white hover:opacity-80 transition-opacity",
     href: "https://github.com/kuberbassi/savewave"
-  }, "GITHUB"), " · ", /*#__PURE__*/React.createElement("a", {
+  }, "GITHUB"), " ·", ' ', /*#__PURE__*/React.createElement("a", {
     className: "text-white hover:opacity-80 transition-opacity",
     href: "https://kuberbassi.com"
   }, "KUBERBASSI.COM")));
