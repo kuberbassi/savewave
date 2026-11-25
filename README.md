@@ -71,12 +71,22 @@ scripts/                 # Sidecar & Android Rust build scripts
 
 ## Build Locally
 
+Requires **Node.js 18+** and **Rust (Cargo)** (plus **Visual Studio C++ Build Tools / WebView2** for Windows Tauri v2, and **Android SDK/NDK** for Android APK).
+
 ```bash
+git clone https://github.com/kuberbassi/savewave.git
+cd savewave
+
+# Install JS dependencies
+npm install
+
 # Rust core tests
 cargo test -p savewave-core
 
+# Run Windows desktop app in dev mode
+npm run tauri:dev
+
 # Windows .exe installer (Tauri v2 + bundled yt-dlp & FFmpeg)
-npm install
 npm run tauri:build
 
 # Android APK (Rust .so + Kotlin Compose)
