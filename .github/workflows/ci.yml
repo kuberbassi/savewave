@@ -4,25 +4,10 @@ on:
   push:
     branches: [main]
   pull_request:
-
-permissions:
-  contents: read
+    branches: [main]
 
 jobs:
-  web-and-desktop-core:
-    runs-on: windows-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: npm
-      - run: npm ci
-      - run: npm run check
-      - run: npm run build:electron
-      - run: npm run prepare:sidecars
-
-  android-core:
+  rust-and-ui:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -30,16 +15,8 @@ jobs:
         with:
           node-version: 22
           cache: npm
-      - uses: android-actions/setup-android@v4
-      - uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: 21
-      - name: Install Android SDK packages
-        run: sdkmanager "platforms;android-36" "build-tools;36.0.0"
+      - uses: dtolnay/rust-toolchain@stable
       - run: npm ci
-      - name: Sync the Capacitor shell
-        run: npm run capacitor:sync
-      - name: Test, lint, and compile the Capacitor client
-        working-directory: android
-        run: bash ./gradlew testDebugUnitTest lintDebug assembleDebug
+      - run: npm run build
+      - run: npm run typecheck
+      - run: cargo test -p savewave-core

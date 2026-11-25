@@ -1,0 +1,35 @@
+[workspace]
+resolver = "2"
+members = [
+    "crates/savewave-core",
+    "crates/savewave-android-jni",
+    "src-tauri",
+]
+
+[workspace.package]
+version = "2.0.0"
+edition = "2021"
+license = "MIT"
+authors = ["Kuber Bassi"]
+
+[workspace.dependencies]
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "time", "sync", "process"] }
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls", "gzip", "deflate"] }
+url = "2"
+regex = "1"
+thiserror = "2"
+deunicode = "1.6"
+unicode-normalization = "0.1"
+strsim = "0.11"
+sha2 = "0.10"
+hex = "0.4"
+uuid = { version = "1", features = ["v4"] }
+
+[profile.release]
+strip = true
+lto = "thin"
+opt-level = "z"
+codegen-units = 1
+panic = "abort"

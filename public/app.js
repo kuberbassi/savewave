@@ -246,6 +246,10 @@ const SavewaveApp = () => {
   const [resolveProgress, setResolveProgress] = useState(0);
   const [downloading, setDownloading] = useState(false);
   const [downloadProgress, setDownloadProgress] = useState(0);
+  const [downloadMeta, setDownloadMeta] = useState({
+    speed: null,
+    eta: null
+  });
   const [activeJobId, setActiveJobId] = useState(null);
   const [mediaInfo, setMediaInfo] = useState(null);
   const [resolvedInput, setResolvedInput] = useState(null);
@@ -316,7 +320,17 @@ const SavewaveApp = () => {
         isOpen: true,
         title: `UPDATE ${release.version} AVAILABLE`,
         message: isDesktopUpdate ? `${release.summary} If the automatic update does not finish, download the Windows installer below and run it after closing Savewave. Your downloads are preserved.` : `${release.summary} Android will ask you to confirm installation. Install over this app to preserve its data; do not uninstall first.`,
-        primaryAction: {
+        primaryAction: isDesktopUpdate && engineRef.current?.installWindowsUpdate ? {
+          label: 'AUTO-INSTALL UPDATE',
+          onClick: async () => {
+            closeModal();
+            try {
+              await engineRef.current.installWindowsUpdate();
+            } catch {
+              window.SavewaveCore.openExternal(release.downloadUrl);
+            }
+          }
+        } : {
           label: isDesktopUpdate ? 'DOWNLOAD WINDOWS UPDATE' : 'GET ANDROID UPDATE',
           onClick: () => window.SavewaveCore.openExternal(release.downloadUrl)
         },
@@ -373,6 +387,21 @@ const SavewaveApp = () => {
       ...prev,
       isOpen: false
     }));
+  };
+  useEffect(() => {
+    const onKeyDown = e => {
+      if (e.key === 'Escape' && modalConfig.isOpen) closeModal();
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [modalConfig.isOpen]);
+  const handleClipboardPaste = async () => {
+    try {
+      const text = await navigator.clipboard.readText();
+      if (text && text.trim()) handleUrlChange(text.trim());
+    } catch {
+      showAlert('Clipboard access was denied. Paste manually with Ctrl+V.', 'CLIPBOARD');
+    }
   };
 
   // Load local history
@@ -626,6 +655,12 @@ const SavewaveApp = () => {
         pollIntervalMs: document.hidden ? 2000 : 750,
         onProgress: progress => {
           if (Number.isFinite(progress.percent)) setDownloadProgress(progress.percent);
+          if (progress.speed || progress.eta) {
+            setDownloadMeta({
+              speed: progress.speed || null,
+              eta: progress.eta || null
+            });
+          }
         },
         onJobChange: jobId => {
           activeJobRef.current = jobId;
@@ -645,7 +680,19 @@ const SavewaveApp = () => {
       });
       const savedCount = completed.filenames?.length || 1;
       const completionMessage = savedCount > 1 ? `${savedCount} items were saved to your Downloads folder.` : `${completed.filename || mediaInfo.title} was saved to your Downloads folder.`;
-      showAlert(completionMessage, 'DOWNLOAD COMPLETE');
+      setModalConfig({
+        isOpen: true,
+        title: 'DOWNLOAD COMPLETE',
+        message: completionMessage,
+        primaryAction: engineRef.current?.openDownloadsFolder ? {
+          label: 'OPEN DOWNLOADS',
+          onClick: () => {
+            engineRef.current.openDownloadsFolder().catch(() => {});
+            closeModal();
+          }
+        } : null,
+        secondaryAction: null
+      });
     } catch (error) {
       const normalized = window.SavewaveCore.normalizeError(error);
       if (normalized.code === 'AUTH_REQUIRED' && engineRef.current?.authenticateInstagram) {
@@ -685,6 +732,10 @@ const SavewaveApp = () => {
       setTimeout(() => {
         setDownloading(false);
         setDownloadProgress(0);
+        setDownloadMeta({
+          speed: null,
+          eta: null
+        });
       }, 450);
     }
   };
@@ -801,7 +852,7 @@ const SavewaveApp = () => {
     className: `helper-status helper-${engineStatus.state}`,
     role: "status",
     "aria-live": "polite"
-  }, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("span", null, engineStatus.platform === 'web' ? 'WEB CAPABILITY' : 'LOCAL ENGINE'), /*#__PURE__*/React.createElement("strong", null, engineStatus.state === 'ready' ? engineStatus.platform === 'web' ? 'LIMITED' : 'CONNECTED' : engineStatus.state === 'checking' ? 'CHECKING' : 'UNAVAILABLE')), engineStatus.platform === 'web' && engineStatus.state === 'ready' && /*#__PURE__*/React.createElement("div", {
+  }, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("span", null, engineStatus.platform === 'web' ? 'WEB CAPABILITY' : 'LOCAL RUST ENGINE'), /*#__PURE__*/React.createElement("strong", null, engineStatus.state === 'ready' ? engineStatus.platform === 'web' ? 'LIMITED' : `CONNECTED${engineStatus.engineVersion ? ` • yt-dlp ${engineStatus.engineVersion}` : ''}` : engineStatus.state === 'checking' ? 'CHECKING' : 'UNAVAILABLE')), engineStatus.platform === 'web' && engineStatus.state === 'ready' && /*#__PURE__*/React.createElement("div", {
     className: "helper-actions"
   }, /*#__PURE__*/React.createElement("span", null, "Direct media works here. Full source support is available in the Savewave app."), /*#__PURE__*/React.createElement("a", {
     href: APP_INSTALL_URL,
@@ -827,10 +878,14 @@ const SavewaveApp = () => {
     className: "media-url-input w-full bg-[#0d0d0e] border border-white/20 text-white placeholder-zinc-500 font-mono text-sm p-4 md:pr-64 outline-none focus:border-[#e03d27]"
   }), /*#__PURE__*/React.createElement("div", {
     className: "mt-2 md:mt-0 md:absolute md:right-4 md:top-1/2 md:-translate-y-1/2 flex flex-wrap justify-end items-center gap-2"
-  }, url && /*#__PURE__*/React.createElement("button", {
+  }, !url && /*#__PURE__*/React.createElement("button", {
+    type: "button",
+    onClick: handleClipboardPaste,
+    className: "text-zinc-300 hover:text-white bg-white/10 hover:bg-white/20 px-2.5 py-1 font-mono text-xs uppercase tracking-wider transition-colors flex items-center gap-1 cursor-pointer"
+  }, "PASTE"), url && /*#__PURE__*/React.createElement("button", {
     type: "button",
     onClick: clearInput,
-    className: "text-zinc-400 hover:text-white bg-white/10 hover:bg-white/20 px-2 py-1 font-mono text-xs uppercase tracking-wider transition-colors flex items-center gap-1"
+    className: "text-zinc-400 hover:text-white bg-white/10 hover:bg-white/20 px-2 py-1 font-mono text-xs uppercase tracking-wider transition-colors flex items-center gap-1 cursor-pointer"
   }, "✕ ", /*#__PURE__*/React.createElement("span", {
     className: "hidden sm:inline"
   }, "CLEAR")), platformInfo && /*#__PURE__*/React.createElement("span", {
@@ -902,14 +957,14 @@ const SavewaveApp = () => {
     className: "media-preview-creator text-xs font-mono text-zinc-400 mb-2"
   }, mediaInfo.creator || mediaInfo.uploader || 'Savewave Engine'), /*#__PURE__*/React.createElement("div", {
     className: "media-preview-meta flex flex-wrap items-center gap-x-2 gap-y-1 font-mono text-[11px] text-[#e03d27]"
-  }, /*#__PURE__*/React.createElement("span", null, typeof mediaInfo.platform === 'string' ? mediaInfo.platform.toUpperCase() : mediaInfo.platform && mediaInfo.platform.name || 'WEB MEDIA'), " • ", /*#__PURE__*/React.createElement("span", null, (mediaInfo.type || mode).toUpperCase()), " • ", /*#__PURE__*/React.createElement("span", null, mediaInfo.qualityLabel || 'BEST AVAILABLE QUALITY')))), /*#__PURE__*/React.createElement("div", {
+  }, /*#__PURE__*/React.createElement("span", null, typeof mediaInfo.platform === 'string' ? mediaInfo.platform.toUpperCase() : mediaInfo.platform && mediaInfo.platform.name || 'WEB MEDIA'), " • ", /*#__PURE__*/React.createElement("span", null, (mediaInfo.type || mode).toUpperCase()), Number.isFinite(mediaInfo.duration) && mediaInfo.duration > 0 ? /*#__PURE__*/React.createElement(React.Fragment, null, " • ", /*#__PURE__*/React.createElement("span", null, `${Math.floor(mediaInfo.duration / 60)}:${String(Math.round(mediaInfo.duration % 60)).padStart(2, '0')}`)) : null, " • ", /*#__PURE__*/React.createElement("span", null, mediaInfo.qualityLabel || 'BEST AVAILABLE QUALITY')))), /*#__PURE__*/React.createElement("div", {
     className: "media-preview-action w-full md:w-auto shrink-0"
   }, /*#__PURE__*/React.createElement(RigButton, {
     variant: "red",
     disabled: downloading,
     className: "w-full md:w-auto py-4 px-8 text-xs",
     onClick: startNativeDownload
-  }, downloading ? 'PREPARING' : 'SAVE'), downloading && /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("div", {
+  }, downloading ? `SAVING ${Math.round(downloadProgress)}%` : 'SAVE'), downloading && /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("div", {
     className: "slim-progress mt-2",
     role: "progressbar",
     "aria-label": "Downloading media",
@@ -920,7 +975,9 @@ const SavewaveApp = () => {
     style: {
       width: `${downloadProgress}%`
     }
-  })), activeJobId && /*#__PURE__*/React.createElement("button", {
+  })), (downloadMeta.speed || downloadMeta.eta) && /*#__PURE__*/React.createElement("div", {
+    className: "font-mono text-[10px] text-zinc-400 mt-1 text-center"
+  }, downloadMeta.speed ? downloadMeta.speed : '', downloadMeta.speed && downloadMeta.eta ? ' • ETA ' : '', downloadMeta.eta || ''), activeJobId && /*#__PURE__*/React.createElement("button", {
     type: "button",
     className: "download-cancel",
     onClick: cancelDownload
@@ -993,7 +1050,50 @@ const SavewaveApp = () => {
     className: "text-sm font-bold text-white mb-1"
   }, "Source Connections"), /*#__PURE__*/React.createElement("p", {
     className: "text-zinc-400"
-  }, "Source platforms still receive your device's network requests; Savewave does not claim anonymity.")))))), /*#__PURE__*/React.createElement("footer", {
+  }, "Source platforms still receive your device's network requests; Savewave does not claim anonymity."))), /*#__PURE__*/React.createElement("div", {
+    className: "mt-6 pt-6 border-t border-white/10 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 font-mono text-xs"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "text-zinc-400"
+  }, /*#__PURE__*/React.createElement("div", null, "RUST CORE ", /*#__PURE__*/React.createElement("span", {
+    className: "text-white font-bold"
+  }, "v", appVersion), engineStatus.engineVersion ? /*#__PURE__*/React.createElement(React.Fragment, null, " • YT-DLP ", /*#__PURE__*/React.createElement("span", {
+    className: "text-emerald-400 font-bold"
+  }, engineStatus.engineVersion)) : null), engineStatus.ffmpegVersion ? /*#__PURE__*/React.createElement("div", {
+    className: "text-[11px] text-zinc-500 mt-1 truncate max-w-xl"
+  }, engineStatus.ffmpegVersion) : null), /*#__PURE__*/React.createElement(RigButton, {
+    variant: "outline",
+    className: "py-2.5 px-5 text-[11px] shrink-0",
+    onClick: async () => {
+      try {
+        const release = await engineRef.current.getReleaseInfo();
+        if (release?.updateAvailable) {
+          setModalConfig({
+            isOpen: true,
+            title: `UPDATE ${release.version} AVAILABLE`,
+            message: release.summary,
+            primaryAction: engineRef.current?.installWindowsUpdate ? {
+              label: 'AUTO-INSTALL UPDATE',
+              onClick: () => {
+                closeModal();
+                engineRef.current.installWindowsUpdate().catch(() => window.SavewaveCore.openExternal(release.downloadUrl));
+              }
+            } : {
+              label: 'DOWNLOAD UPDATE',
+              onClick: () => window.SavewaveCore.openExternal(release.downloadUrl)
+            },
+            secondaryAction: {
+              label: 'RELEASE NOTES',
+              onClick: () => window.SavewaveCore.openExternal(release.changelogUrl)
+            }
+          });
+        } else {
+          showAlert(`Savewave v${appVersion} is up to date.`, 'UP TO DATE');
+        }
+      } catch {
+        showAlert('Could not check GitHub Releases right now.', 'UPDATE CHECK');
+      }
+    }
+  }, "CHECK FOR UPDATES"))))), /*#__PURE__*/React.createElement("footer", {
     className: "relative z-10 bg-[#08080a] border-t border-white/10 px-6 md:px-12 py-10"
   }, /*#__PURE__*/React.createElement("div", {
     className: "max-w-6xl mx-auto flex flex-col md:flex-row justify-between items-center gap-6 font-mono text-xs text-zinc-400"

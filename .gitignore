@@ -46,6 +46,11 @@ test-results/
 
 assets/binaries/yt-dlp-*
 assets/binaries/ffmpeg-*
-src-tauri/
+src-tauri/binaries/yt-dlp-*
+src-tauri/binaries/ffmpeg-*
+src-tauri/gen/
+src-tauri/target/
+target/
 **/.gradle/
 android/**/build/
+android/app/src/main/jniLibs/

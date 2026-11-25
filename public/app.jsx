@@ -171,6 +171,7 @@ const SavewaveApp = () => {
   const [resolveProgress, setResolveProgress] = useState(0);
   const [downloading, setDownloading] = useState(false);
   const [downloadProgress, setDownloadProgress] = useState(0);
+  const [downloadMeta, setDownloadMeta] = useState({ speed: null, eta: null });
   const [activeJobId, setActiveJobId] = useState(null);
   const [mediaInfo, setMediaInfo] = useState(null);
   const [resolvedInput, setResolvedInput] = useState(null);
@@ -226,10 +227,22 @@ const SavewaveApp = () => {
         message: isDesktopUpdate
           ? `${release.summary} If the automatic update does not finish, download the Windows installer below and run it after closing Savewave. Your downloads are preserved.`
           : `${release.summary} Android will ask you to confirm installation. Install over this app to preserve its data; do not uninstall first.`,
-        primaryAction: {
-          label: isDesktopUpdate ? 'DOWNLOAD WINDOWS UPDATE' : 'GET ANDROID UPDATE',
-          onClick: () => window.SavewaveCore.openExternal(release.downloadUrl)
-        },
+        primaryAction: isDesktopUpdate && engineRef.current?.installWindowsUpdate
+          ? {
+            label: 'AUTO-INSTALL UPDATE',
+            onClick: async () => {
+              closeModal();
+              try {
+                await engineRef.current.installWindowsUpdate();
+              } catch {
+                window.SavewaveCore.openExternal(release.downloadUrl);
+              }
+            }
+          }
+          : {
+            label: isDesktopUpdate ? 'DOWNLOAD WINDOWS UPDATE' : 'GET ANDROID UPDATE',
+            onClick: () => window.SavewaveCore.openExternal(release.downloadUrl)
+          },
         secondaryAction: { label: 'RELEASE NOTES', onClick: () => window.SavewaveCore.openExternal(release.changelogUrl) }
       });
     }).catch(() => {});
@@ -273,6 +286,23 @@ const SavewaveApp = () => {
 
   const closeModal = () => {
     setModalConfig(prev => ({ ...prev, isOpen: false }));
+  };
+
+  useEffect(() => {
+    const onKeyDown = (e) => {
+      if (e.key === 'Escape' && modalConfig.isOpen) closeModal();
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [modalConfig.isOpen]);
+
+  const handleClipboardPaste = async () => {
+    try {
+      const text = await navigator.clipboard.readText();
+      if (text && text.trim()) handleUrlChange(text.trim());
+    } catch {
+      showAlert('Clipboard access was denied. Paste manually with Ctrl+V.', 'CLIPBOARD');
+    }
   };
 
   // Load local history
@@ -485,6 +515,9 @@ const SavewaveApp = () => {
         pollIntervalMs: document.hidden ? 2000 : 750,
         onProgress: (progress) => {
           if (Number.isFinite(progress.percent)) setDownloadProgress(progress.percent);
+          if (progress.speed || progress.eta) {
+            setDownloadMeta({ speed: progress.speed || null, eta: progress.eta || null });
+          }
         },
         onJobChange: (jobId) => {
           activeJobRef.current = jobId;
@@ -507,7 +540,15 @@ const SavewaveApp = () => {
       const completionMessage = savedCount > 1
         ? `${savedCount} items were saved to your Downloads folder.`
         : `${completed.filename || mediaInfo.title} was saved to your Downloads folder.`;
-      showAlert(completionMessage, 'DOWNLOAD COMPLETE');
+      setModalConfig({
+        isOpen: true,
+        title: 'DOWNLOAD COMPLETE',
+        message: completionMessage,
+        primaryAction: engineRef.current?.openDownloadsFolder
+          ? { label: 'OPEN DOWNLOADS', onClick: () => { engineRef.current.openDownloadsFolder().catch(() => {}); closeModal(); } }
+          : null,
+        secondaryAction: null
+      });
     } catch (error) {
       const normalized = window.SavewaveCore.normalizeError(error);
       if (normalized.code === 'AUTH_REQUIRED' && engineRef.current?.authenticateInstagram) {
@@ -546,6 +587,7 @@ const SavewaveApp = () => {
       setTimeout(() => {
         setDownloading(false);
         setDownloadProgress(0);
+        setDownloadMeta({ speed: null, eta: null });
       }, 450);
     }
   };
@@ -666,8 +708,12 @@ const SavewaveApp = () => {
 
               <div className={`helper-status helper-${engineStatus.state}`} role="status" aria-live="polite">
                 <div>
-                  <span>{engineStatus.platform === 'web' ? 'WEB CAPABILITY' : 'LOCAL ENGINE'}</span>
-                  <strong>{engineStatus.state === 'ready' ? (engineStatus.platform === 'web' ? 'LIMITED' : 'CONNECTED') : engineStatus.state === 'checking' ? 'CHECKING' : 'UNAVAILABLE'}</strong>
+                  <span>{engineStatus.platform === 'web' ? 'WEB CAPABILITY' : 'LOCAL RUST ENGINE'}</span>
+                  <strong>
+                    {engineStatus.state === 'ready'
+                      ? (engineStatus.platform === 'web' ? 'LIMITED' : `CONNECTED${engineStatus.engineVersion ? ` • yt-dlp ${engineStatus.engineVersion}` : ''}`)
+                      : engineStatus.state === 'checking' ? 'CHECKING' : 'UNAVAILABLE'}
+                  </strong>
                 </div>
                 {engineStatus.platform === 'web' && engineStatus.state === 'ready' && (
                   <div className="helper-actions">
@@ -698,11 +744,20 @@ const SavewaveApp = () => {
 
                     {/* Input Actions */}
                     <div className="mt-2 md:mt-0 md:absolute md:right-4 md:top-1/2 md:-translate-y-1/2 flex flex-wrap justify-end items-center gap-2">
+                      {!url && (
+                        <button
+                          type="button"
+                          onClick={handleClipboardPaste}
+                          className="text-zinc-300 hover:text-white bg-white/10 hover:bg-white/20 px-2.5 py-1 font-mono text-xs uppercase tracking-wider transition-colors flex items-center gap-1 cursor-pointer"
+                        >
+                          PASTE
+                        </button>
+                      )}
                       {url && (
                         <button
                           type="button"
                           onClick={clearInput}
-                          className="text-zinc-400 hover:text-white bg-white/10 hover:bg-white/20 px-2 py-1 font-mono text-xs uppercase tracking-wider transition-colors flex items-center gap-1"
+                          className="text-zinc-400 hover:text-white bg-white/10 hover:bg-white/20 px-2 py-1 font-mono text-xs uppercase tracking-wider transition-colors flex items-center gap-1 cursor-pointer"
                         >
                           ✕ <span className="hidden sm:inline">CLEAR</span>
                         </button>
@@ -782,20 +837,25 @@ const SavewaveApp = () => {
                         <p className="media-preview-creator text-xs font-mono text-zinc-400 mb-2">{mediaInfo.creator || mediaInfo.uploader || 'Savewave Engine'}</p>
 
                         <div className="media-preview-meta flex flex-wrap items-center gap-x-2 gap-y-1 font-mono text-[11px] text-[#e03d27]">
-                          <span>{typeof mediaInfo.platform === 'string' ? mediaInfo.platform.toUpperCase() : (mediaInfo.platform && mediaInfo.platform.name) || 'WEB MEDIA'}</span> • <span>{(mediaInfo.type || mode).toUpperCase()}</span> • <span>{mediaInfo.qualityLabel || 'BEST AVAILABLE QUALITY'}</span>
+                          <span>{typeof mediaInfo.platform === 'string' ? mediaInfo.platform.toUpperCase() : (mediaInfo.platform && mediaInfo.platform.name) || 'WEB MEDIA'}</span> • <span>{(mediaInfo.type || mode).toUpperCase()}</span>{Number.isFinite(mediaInfo.duration) && mediaInfo.duration > 0 ? <> • <span>{`${Math.floor(mediaInfo.duration / 60)}:${String(Math.round(mediaInfo.duration % 60)).padStart(2, '0')}`}</span></> : null} • <span>{mediaInfo.qualityLabel || 'BEST AVAILABLE QUALITY'}</span>
                         </div>
                       </div>
                     </div>
 
                     <div className="media-preview-action w-full md:w-auto shrink-0">
                       <RigButton variant="red" disabled={downloading} className="w-full md:w-auto py-4 px-8 text-xs" onClick={startNativeDownload}>
-                        {downloading ? 'PREPARING' : 'SAVE'}
+                        {downloading ? `SAVING ${Math.round(downloadProgress)}%` : 'SAVE'}
                       </RigButton>
                       {downloading && (
                         <>
                           <div className="slim-progress mt-2" role="progressbar" aria-label="Downloading media" aria-valuemin="0" aria-valuemax="100" aria-valuenow={Math.round(downloadProgress)}>
                             <span style={{ width: `${downloadProgress}%` }}></span>
                           </div>
+                          {(downloadMeta.speed || downloadMeta.eta) && (
+                            <div className="font-mono text-[10px] text-zinc-400 mt-1 text-center">
+                              {downloadMeta.speed ? downloadMeta.speed : ''}{downloadMeta.speed && downloadMeta.eta ? ' • ETA ' : ''}{downloadMeta.eta || ''}
+                            </div>
+                          )}
                           {activeJobId && <button type="button" className="download-cancel" onClick={cancelDownload}>CANCEL</button>}
                         </>
                       )}
@@ -877,6 +937,35 @@ const SavewaveApp = () => {
                   <h3 className="text-sm font-bold text-white mb-1">Source Connections</h3>
                   <p className="text-zinc-400">Source platforms still receive your device's network requests; Savewave does not claim anonymity.</p>
                 </div>
+              </div>
+
+              <div className="mt-6 pt-6 border-t border-white/10 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 font-mono text-xs">
+                <div className="text-zinc-400">
+                  <div>RUST CORE <span className="text-white font-bold">v{appVersion}</span>{engineStatus.engineVersion ? <> • YT-DLP <span className="text-emerald-400 font-bold">{engineStatus.engineVersion}</span></> : null}</div>
+                  {engineStatus.ffmpegVersion ? <div className="text-[11px] text-zinc-500 mt-1 truncate max-w-xl">{engineStatus.ffmpegVersion}</div> : null}
+                </div>
+                <RigButton variant="outline" className="py-2.5 px-5 text-[11px] shrink-0" onClick={async () => {
+                  try {
+                    const release = await engineRef.current.getReleaseInfo();
+                    if (release?.updateAvailable) {
+                      setModalConfig({
+                        isOpen: true,
+                        title: `UPDATE ${release.version} AVAILABLE`,
+                        message: release.summary,
+                        primaryAction: engineRef.current?.installWindowsUpdate
+                          ? { label: 'AUTO-INSTALL UPDATE', onClick: () => { closeModal(); engineRef.current.installWindowsUpdate().catch(() => window.SavewaveCore.openExternal(release.downloadUrl)); } }
+                          : { label: 'DOWNLOAD UPDATE', onClick: () => window.SavewaveCore.openExternal(release.downloadUrl) },
+                        secondaryAction: { label: 'RELEASE NOTES', onClick: () => window.SavewaveCore.openExternal(release.changelogUrl) }
+                      });
+                    } else {
+                      showAlert(`Savewave v${appVersion} is up to date.`, 'UP TO DATE');
+                    }
+                  } catch {
+                    showAlert('Could not check GitHub Releases right now.', 'UPDATE CHECK');
+                  }
+                }}>
+                  CHECK FOR UPDATES
+                </RigButton>
               </div>
             </RigCard>
           )}

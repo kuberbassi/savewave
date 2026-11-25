@@ -1,0 +1,19 @@
+[package]
+name = "savewave-core"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+serde.workspace = true
+serde_json.workspace = true
+tokio.workspace = true
+reqwest.workspace = true
+url.workspace = true
+regex.workspace = true
+thiserror.workspace = true
+deunicode.workspace = true
+unicode-normalization.workspace = true
+strsim.workspace = true
+sha2.workspace = true
+hex.workspace = true

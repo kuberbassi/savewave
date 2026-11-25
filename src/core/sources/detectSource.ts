@@ -19,7 +19,7 @@ export function detectSource(value: string): MediaSource {
   if (isDomain(host, 'threads.net')) return 'threads';
   if (isDomain(host, 'twitter.com') || host === 'x.com') return 'twitter';
   if (isDomain(host, 'soundcloud.com')) return 'soundcloud';
-  if (host === 'open.spotify.com') return 'spotify';
+  if (host === 'open.spotify.com' || host === 'spotify.link' || host === 'spoti.fi') return 'spotify';
   return directExtensions.test(url.pathname) ? 'direct' : 'unknown';
 }
 
